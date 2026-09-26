@@ -1,0 +1,59 @@
+# Operating system files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor and IDE local files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# PlatformIO build output and local metadata
+.pio/
+**/.pio/
+**/.pioenvs/
+**/.piolibdeps/
+**/libdeps/
+*.elf
+*.map
+*.hex
+*.bin
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Logs, crash dumps, and temporary files
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.dmp
+
+# Local configuration and credentials
+*.local
+*.local.*
+*secret*
+*secrets*
+*password*
+*credential*
+*.pem
+*.key
+*.p12
+*.pfx
+
+# OS/user-specific generated exports
+build/
+dist/
+release/
