@@ -7,7 +7,8 @@ OmiPet 是一个面向陪伴场景的桌面宠物相关的软硬件项目。仓�
 ```text
 OmiPet/
 ├─ Firmware/       # ESP32-S3 固件（PlatformIO + Arduino）
-├─ Hardware/       # 硬件设计资料（后续添加）
+├─ Hardware/       # 硬件设计资料
+│  └─ Schematic/   # 原理图 PDF
 ├─ 3D/             # 3D 模型、结构设计文件（后续添加）
 ├─ README.md
 └─ .gitignore
@@ -30,6 +31,12 @@ pio run
 ```
 
 编译产物位于 `Firmware/.pio/`，该目录已加入 Git 忽略规则，不会提交到仓库。
+
+## 硬件资料
+
+当前已归档原理图：`Hardware/Schematic/Omi_Schematic.pdf`。
+
+Git 不会跟踪空目录；`Hardware/PCB/`、`Hardware/BOM/`、`Hardware/Enclosure/`、`Hardware/Images/` 和 `3D/` 等目录将在加入实际文件后显示在仓库中。
 
 ## 当前注意事项
 
