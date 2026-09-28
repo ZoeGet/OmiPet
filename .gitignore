@@ -57,3 +57,6 @@ env/
 build/
 dist/
 release/
+
+# Local agent handoff instructions
+AGENTS.md
