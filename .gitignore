@@ -60,3 +60,29 @@ release/
 
 # Local agent handoff instructions
 AGENTS.md
+
+# Vendor LCD example build outputs and IDE state
+2.79/**/MDK-ARM/Objects/
+2.79/**/MDK-ARM/Listings/
+2.79/**/MDK-ARM/DebugConfig/
+2.79/**/Progect/Objects/
+2.79/**/Progect/Listings/
+2.79/**/Progect/DebugConfig/
+2.79/**/JLink*.txt
+2.79/**/*.o
+2.79/**/*.d
+2.79/**/*.crf
+2.79/**/*.axf
+2.79/**/*.lst
+2.79/**/*.sct
+2.79/**/*.lnp
+2.79/**/*.dep
+2.79/**/*.htm
+2.79/**/*.map
+2.79/**/*.hex
+2.79/**/*.TMP
+2.79/**/*.uvoptx
+2.79/**/*.uvguix*
+
+# Local inspection and patch artifacts
+tmp/
