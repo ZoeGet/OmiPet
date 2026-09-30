@@ -10,6 +10,11 @@ constexpr uint8_t kAht20Address = 0x38;
 constexpr uint8_t kAht20SdaPin = 39;
 constexpr uint8_t kAht20SclPin = 38;
 
+// 根据当前整机实测结果设置的现场补偿值，不是 AHT20 手册参数 /
+// Field calibration offsets based on the current assembled device, not AHT20 datasheet values
+constexpr float kTemperatureCalibrationOffsetC = -4.0F;
+constexpr float kHumidityCalibrationOffsetPercent = 9.0F;
+
 // AHT20 驱动错误类型 / AHT20 driver error types
 enum class Aht20Error : uint8_t {
   None,

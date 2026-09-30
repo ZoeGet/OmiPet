@@ -6,9 +6,9 @@
 #include "omi_pet_ui.h"
 
 void setup() {
-  // 初始化灯带并保持关闭，避免测试灯光给传感器增加热源 / Initialize the LED strip and keep it off to avoid adding heat near the sensor
+  // 初始化灯带并保持低亮度白光 / Initialize the LED strip and keep low-brightness white light
   OmiPetLed::strip.begin(16);
-  OmiPetLed::strip.clear();
+  OmiPetLed::strip.fill(255, 255, 255);
 
   // 初始化无源蜂鸣器，但不自动播放声音 / Initialize the passive buzzer without playing sound automatically
   OmiPetBuzzer::buzzer.begin();

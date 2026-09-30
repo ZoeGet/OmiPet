@@ -101,9 +101,16 @@ bool Aht20Sensor::readMeasurement() {
     return fail(Aht20Error::OutOfRange);
   }
 
+  // 应用当前整机的经验补偿，修正 PCB 热影响 /
+  // Apply the current device-specific empirical offsets to compensate for PCB thermal influence
+  const float correctedHumidity = constrain(
+      humidity + kHumidityCalibrationOffsetPercent, 0.0F, 100.0F);
+  const float correctedTemperature =
+      temperature + kTemperatureCalibrationOffsetC;
+
   // 只在 CRC 和范围均通过后发布新数据 / Publish new data only after CRC and range checks pass
-  measurement_.temperatureC = temperature;
-  measurement_.humidityPercent = humidity;
+  measurement_.temperatureC = correctedTemperature;
+  measurement_.humidityPercent = correctedHumidity;
   measurement_.rawTemperature = rawTemperature;
   measurement_.rawHumidity = rawHumidity;
   measurement_.status = frame[0];
