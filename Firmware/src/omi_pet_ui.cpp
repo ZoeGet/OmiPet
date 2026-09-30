@@ -4,6 +4,7 @@
 
 #include <cstring>
 #include <cstdio>
+#include <cstdint>
 
 #include "NV3007_Display.h"
 
@@ -20,6 +21,7 @@ constexpr Glyph kFont[] = {
     {' ', {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
     {'-', {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}},
     {':', {0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00}},
+    {'.', {0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x06}},
     {'%', {0x19, 0x19, 0x02, 0x04, 0x08, 0x13, 0x13}},
     {'0', {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}},
     {'1', {0x04, 0x0C, 0x04, 0x04, 0x04, 0x04, 0x0E}},
@@ -74,6 +76,10 @@ uint32_t gClockStartMillis = 0;
 uint32_t gClockBaseSeconds = 0;
 uint32_t gLastRenderedSecond = UINT32_MAX;
 bool gBlink = false;
+bool gUiStarted = false;
+bool gEnvironmentValid = false;
+float gTemperatureC = 0.0F;
+float gHumidityPercent = 0.0F;
 uint16_t gGlyphBitmap[15 * 21] = {};
 
 const Glyph* findGlyph(char character) {
@@ -197,6 +203,45 @@ void drawClock(uint32_t seconds) {
   drawCenteredText(205, clockText, 3, kWhite);
 }
 
+void formatTemperature(char* output, size_t outputSize) {
+  int32_t tenths = static_cast<int32_t>(gTemperatureC * 10.0F +
+                                        (gTemperatureC >= 0.0F ? 0.5F : -0.5F));
+  const bool negative = tenths < 0;
+  const uint32_t absoluteTenths =
+      static_cast<uint32_t>(negative ? -tenths : tenths);
+  const uint32_t whole = absoluteTenths / 10U;
+  const uint32_t fraction = absoluteTenths % 10U;
+  if (negative) {
+    std::snprintf(output, outputSize, "T -%lu.%luC",
+                  static_cast<unsigned long>(whole),
+                  static_cast<unsigned long>(fraction));
+  } else {
+    std::snprintf(output, outputSize, "T %lu.%luC",
+                  static_cast<unsigned long>(whole),
+                  static_cast<unsigned long>(fraction));
+  }
+}
+
+void drawEnvironment() {
+  char temperatureText[12] = {};
+  char humidityText[10] = {};
+  if (gEnvironmentValid) {
+    formatTemperature(temperatureText, sizeof(temperatureText));
+    const int32_t humidity = static_cast<int32_t>(gHumidityPercent + 0.5F);
+    std::snprintf(humidityText, sizeof(humidityText), "H %ld%%",
+                  static_cast<long>(humidity));
+  } else {
+    std::strncpy(temperatureText, "T --C", sizeof(temperatureText) - 1U);
+    std::strncpy(humidityText, "H --%", sizeof(humidityText) - 1U);
+  }
+
+  // 分行局部刷新，避免覆盖整块屏幕 / Refresh each row locally to avoid redrawing the whole screen
+  OmiPetDisplay::lcd.fillRect(0, 300, kScreenWidth, 26, kBackground);
+  OmiPetDisplay::lcd.fillRect(0, 330, kScreenWidth, 26, kBackground);
+  drawCenteredText(304, temperatureText, 2, kGreen);
+  drawCenteredText(334, humidityText, 2, kAccent);
+}
+
 void drawStaticUi() {
   OmiPetDisplay::lcd.fillScreen(kBackground);
   drawCenteredText(10, "OMIPET", 2, kAccent);
@@ -204,9 +249,7 @@ void drawStaticUi() {
   drawClock(currentClockSeconds());
   drawCenteredText(254, __DATE__, 1, kAccent);
 
-  // 传感器和电池尚未接入，先显示占位符 / Sensors and battery are not connected yet, show placeholders
-  drawCenteredText(304, "T --C", 2, kGreen);
-  drawCenteredText(334, "H --%", 2, kAccent);
+  drawEnvironment();
   drawCenteredText(364, "BAT --%", 2, kYellow);
   drawCenteredText(405, "DEMO CLOCK", 1, kAccent);
 }
@@ -219,6 +262,16 @@ void begin() {
   gLastRenderedSecond = UINT32_MAX;
   gBlink = false;
   drawStaticUi();
+  gUiStarted = true;
+}
+
+void setEnvironment(float temperatureC, float humidityPercent, bool valid) {
+  gTemperatureC = temperatureC;
+  gHumidityPercent = humidityPercent;
+  gEnvironmentValid = valid;
+  if (gUiStarted) {
+    drawEnvironment();
+  }
 }
 
 void update() {
