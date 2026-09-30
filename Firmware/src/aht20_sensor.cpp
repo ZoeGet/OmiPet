@@ -7,6 +7,7 @@ namespace {
 constexpr uint8_t kStatusBusyMask = 0x80;
 constexpr uint8_t kStatusCalibrationMask = 0x08;
 constexpr uint32_t kPowerUpDelayMs = 100;
+constexpr uint32_t kCalibrationDelayMs = 10;
 constexpr uint32_t kMeasurementStartDelayMs = 10;
 constexpr uint32_t kMeasurementConversionDelayMs = 80;
 constexpr uint32_t kMeasurementTimeoutMs = 120;
@@ -74,6 +75,14 @@ bool Aht20Sensor::readMeasurement() {
     return fail(Aht20Error::CrcMismatch);
   }
 
+  // 检查测量完成和校准状态 / Check measurement completion and calibration status
+  if ((frame[0] & kStatusBusyMask) != 0) {
+    return fail(Aht20Error::BusyTimeout);
+  }
+  if ((frame[0] & kStatusCalibrationMask) == 0) {
+    return fail(Aht20Error::CalibrationFailed);
+  }
+
   // 从 20-bit 原始数据恢复湿度和温度 / Decode humidity and temperature from 20-bit raw values
   const uint32_t rawHumidity =
       ((static_cast<uint32_t>(frame[1]) << 12) |
@@ -95,6 +104,9 @@ bool Aht20Sensor::readMeasurement() {
   // 只在 CRC 和范围均通过后发布新数据 / Publish new data only after CRC and range checks pass
   measurement_.temperatureC = temperature;
   measurement_.humidityPercent = humidity;
+  measurement_.rawTemperature = rawTemperature;
+  measurement_.rawHumidity = rawHumidity;
+  measurement_.status = frame[0];
   measurement_.valid = true;
   measurement_.stale = false;
   measurement_.timestampMs = millis();
@@ -128,7 +140,7 @@ bool Aht20Sensor::probe() {
 }
 
 bool Aht20Sensor::readStatus(uint8_t& status) {
-  // AHT20 通过单字节读取返回当前状态 / AHT20 returns the current status through a one-byte read
+  // requestFrom 会在总线上生成 0x71 读地址，不要把 0x71 当作数据写入 / requestFrom generates the 0x71 read address on the bus; do not write 0x71 as payload data
   const size_t requested = wire_->requestFrom(
       static_cast<uint8_t>(kAht20Address), static_cast<size_t>(1), true);
   if (requested != 1U || wire_->available() < 1) {
@@ -151,6 +163,8 @@ bool Aht20Sensor::ensureCalibration() {
   if (!sendCommand(kInitializeCommand, sizeof(kInitializeCommand))) {
     return false;
   }
+  // 初始化命令后等待内部校准完成 / Wait for internal calibration after the initialization command
+  delay(kCalibrationDelayMs);
   if (!waitUntilReady(kMeasurementTimeoutMs)) {
     return fail(Aht20Error::CalibrationFailed);
   }

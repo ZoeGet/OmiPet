@@ -28,6 +28,9 @@ enum class Aht20Error : uint8_t {
 struct Aht20Measurement {
   float temperatureC = 0.0F;
   float humidityPercent = 0.0F;
+  uint32_t rawTemperature = 0;
+  uint32_t rawHumidity = 0;
+  uint8_t status = 0;
   bool valid = false;
   bool stale = true;
   uint32_t timestampMs = 0;
