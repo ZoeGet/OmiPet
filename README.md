@@ -9,7 +9,8 @@ OmiPet/
 ├─ Firmware/       # ESP32-S3 固件（PlatformIO + Arduino）
 ├─ Hardware/       # 硬件设计资料
 │  ├─ Schematic/   # 原理图 PDF
-│  └─ Images/      # 硬件实物照片
+│  ├─ Images/      # 硬件实物照片
+│  └─ Enclosure/   # 3D 外壳模型
 ├─ 3D/             # 3D 模型、结构设计文件（后续添加）
 ├─ README.md
 └─ .gitignore
@@ -43,7 +44,12 @@ pio run
 
 ![OmiPet 焊接完成实物照片（2026-09-30 更新）](Hardware/Images/Welding.jpg)
 
-Git 不会跟踪空目录；`Hardware/PCB/`、`Hardware/BOM/`、`Hardware/Enclosure/` 和 `3D/` 等目录将在加入实际文件后显示在仓库中。
+### 3D 外壳文件
+
+- [`Frontcover.STEP`](Hardware/Enclosure/Frontcover.STEP)：前壳模型
+- [`Backcover.STEP`](Hardware/Enclosure/Backcover.STEP)：后壳模型
+
+Git 不会跟踪空目录；`Hardware/PCB/`、`Hardware/BOM/` 和 `3D/` 等目录将在加入实际文件后显示在仓库中。
 
 ## 当前注意事项
 
