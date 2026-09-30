@@ -39,7 +39,9 @@ pio run
 
 ### 焊接完成照片
 
-![OmiPet 焊接完成实物照片](Hardware/Images/Welding.jpg)
+以下为更新后的焊接完成实物照片（2026-09-30）。
+
+![OmiPet 焊接完成实物照片（2026-09-30 更新）](Hardware/Images/Welding.jpg)
 
 Git 不会跟踪空目录；`Hardware/PCB/`、`Hardware/BOM/`、`Hardware/Enclosure/` 和 `3D/` 等目录将在加入实际文件后显示在仓库中。
 
