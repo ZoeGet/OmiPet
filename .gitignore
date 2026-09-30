@@ -62,6 +62,7 @@ release/
 AGENTS.md
 
 # Vendor LCD example build outputs and IDE state
+2.79/
 2.79/**/MDK-ARM/Objects/
 2.79/**/MDK-ARM/Listings/
 2.79/**/MDK-ARM/DebugConfig/
