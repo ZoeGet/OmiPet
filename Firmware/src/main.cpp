@@ -14,11 +14,23 @@ namespace {
 
 constexpr size_t kMicDiagnosticFrameCount = 800;
 constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;
+constexpr uint32_t kMicWindowIntervalMs = 50;
+constexpr uint32_t kMicLogIntervalMs = 1000;
+constexpr uint32_t kMinimumSpeechStartRms = 10000;
+constexpr uint32_t kMinimumSpeechHoldRms = 5000;
+constexpr uint8_t kSpeechStartWindowCount = 3;
+constexpr uint8_t kSpeechEndWindowCount = 8;
 int32_t gMicDiagnosticWords[kMicDiagnosticWordCount] = {};
-uint32_t gLastMicDiagnosticMs = 0;
+uint32_t gLastMicWindowMs = 0;
+uint32_t gLastMicLogMs = 0;
 uint32_t gLastSystemHeartbeatMs = 0;
 uint32_t gMicNoiseFloorRms = 0;
 bool gMicNoiseFloorInitialized = false;
+uint8_t gSpeechStartWindows = 0;
+uint8_t gSpeechQuietWindows = 0;
+bool gSpeechActive = false;
+uint32_t gLastMicThreshold = 0;
+bool gLastSpeechCandidate = false;
 
 struct MicLevelStats {
   uint32_t averageAbsolute = 0;
@@ -26,6 +38,8 @@ struct MicLevelStats {
   uint32_t peak = 0;
   size_t frameCount = 0;
 };
+
+MicLevelStats gLastMicStats;
 
 //  计算选定声道的音量统计 / Calculate level statistics for the selected channel
 MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
@@ -67,48 +81,100 @@ bool detectSpeech(uint32_t rms, uint32_t& threshold) {
     gMicNoiseFloorInitialized = true;
   }
 
-  threshold = std::max(gMicNoiseFloorRms * 3U, gMicNoiseFloorRms + 1000U);
-  const bool speechDetected = rms > threshold;
+  const uint32_t thresholdMultiplier = gSpeechActive ? 2U : 3U;
+  threshold = std::max(gMicNoiseFloorRms * thresholdMultiplier,
+                       gMicNoiseFloorRms + 1000U);
+  const uint32_t minimumRms =
+      gSpeechActive ? kMinimumSpeechHoldRms : kMinimumSpeechStartRms;
+  const bool speechDetected = rms > threshold && rms >= minimumRms;
   if (!speechDetected) {
     gMicNoiseFloorRms = (gMicNoiseFloorRms * 15U + rms) / 16U;
   }
   return speechDetected;
 }
 
-//  每秒打印一次麦克风原始统计 / Print raw microphone statistics once per second
+//  更新连续语音状态并应用迟滞 / Update continuous speech state with hysteresis
+bool updateSpeechState(bool speechCandidate) {
+  if (speechCandidate) {
+    gSpeechQuietWindows = 0;
+    if (!gSpeechActive) {
+      if (gSpeechStartWindows < 255U) {
+        ++gSpeechStartWindows;
+      }
+      if (gSpeechStartWindows >= kSpeechStartWindowCount) {
+        gSpeechActive = true;
+        gSpeechStartWindows = 0;
+      }
+    }
+  } else {
+    gSpeechStartWindows = 0;
+    if (gSpeechActive) {
+      if (gSpeechQuietWindows < 255U) {
+        ++gSpeechQuietWindows;
+      }
+      if (gSpeechQuietWindows >= kSpeechEndWindowCount) {
+        gSpeechActive = false;
+        gSpeechQuietWindows = 0;
+      }
+    }
+  }
+  return gSpeechActive;
+}
+
+//  每 50 ms 处理音频窗口，每秒打印一次状态 / Process an audio window every 50 ms and print status once per second
 void updateMicrophoneDiagnostic() {
-  if (millis() - gLastMicDiagnosticMs < 1000U) {
+  const uint32_t nowMs = millis();
+  if (nowMs - gLastMicWindowMs < kMicWindowIntervalMs) {
     return;
   }
-  gLastMicDiagnosticMs = millis();
+  gLastMicWindowMs = nowMs;
 
   if (!OmiPetAudio::microphone.initialized()) {
-    Serial.println("[MIC] unavailable");
+    if (nowMs - gLastMicLogMs >= kMicLogIntervalMs) {
+      gLastMicLogMs = nowMs;
+      Serial.println("[MIC] unavailable");
+    }
     return;
   }
 
-  Serial.println("[MIC] read begin");
-  Serial.flush();
   const size_t wordCount = OmiPetAudio::microphone.readRawWords(
       gMicDiagnosticWords, kMicDiagnosticWordCount);
   if (wordCount == 0U) {
-    Serial.println("[MIC] no samples");
+    if (nowMs - gLastMicLogMs >= kMicLogIntervalMs) {
+      gLastMicLogMs = nowMs;
+      Serial.println("[MIC] no samples");
+    }
     return;
   }
 
-  const MicLevelStats stats = analyzeMicrophoneLevel(
+  gLastMicStats = analyzeMicrophoneLevel(
       gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
-  uint32_t speechThreshold = 0;
-  const bool speechDetected = detectSpeech(stats.rms, speechThreshold);
+  gLastSpeechCandidate =
+      detectSpeech(gLastMicStats.rms, gLastMicThreshold);
+  const bool speechWasActive = gSpeechActive;
+  updateSpeechState(gLastSpeechCandidate);
+  if (speechWasActive != gSpeechActive) {
+    Serial.printf("[VAD] event=%s rms=%lu threshold=%lu\n",
+                  gSpeechActive ? "start" : "stop",
+                  static_cast<unsigned long>(gLastMicStats.rms),
+                  static_cast<unsigned long>(gLastMicThreshold));
+  }
+  if (nowMs - gLastMicLogMs < kMicLogIntervalMs) {
+    return;
+  }
+  gLastMicLogMs = nowMs;
   Serial.printf(
-      "[MIC] frames=%u avg_abs=%lu rms=%lu peak=%lu noise=%lu threshold=%lu speech=%s\n",
-      static_cast<unsigned>(stats.frameCount),
-      static_cast<unsigned long>(stats.averageAbsolute),
-      static_cast<unsigned long>(stats.rms),
-      static_cast<unsigned long>(stats.peak),
+      "[MIC] frames=%u avg_abs=%lu rms=%lu peak=%lu noise=%lu threshold=%lu candidate=%s speech=%s start=%u quiet=%u\n",
+      static_cast<unsigned>(gLastMicStats.frameCount),
+      static_cast<unsigned long>(gLastMicStats.averageAbsolute),
+      static_cast<unsigned long>(gLastMicStats.rms),
+      static_cast<unsigned long>(gLastMicStats.peak),
       static_cast<unsigned long>(gMicNoiseFloorRms),
-      static_cast<unsigned long>(speechThreshold),
-      speechDetected ? "yes" : "no");
+      static_cast<unsigned long>(gLastMicThreshold),
+      gLastSpeechCandidate ? "yes" : "no",
+      gSpeechActive ? "yes" : "no",
+      static_cast<unsigned>(gSpeechStartWindows),
+      static_cast<unsigned>(gSpeechQuietWindows));
 }
 
 //  持续输出系统心跳 / Print a persistent system heartbeat
