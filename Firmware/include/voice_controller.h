@@ -11,8 +11,8 @@ constexpr char kWakeWordPronunciation[] = "嘿！欧咪";
 //  唤醒确认音配置 / Wake acknowledgement tone configuration
 constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2800;
 constexpr uint32_t kWakeAcknowledgementLowFrequencyHz = 1800;
-constexpr uint32_t kWakeAcknowledgementHighDurationMs = 220;
-constexpr uint32_t kWakeAcknowledgementLowDurationMs = 230;
+constexpr uint32_t kWakeAcknowledgementHighDurationMs = 150;
+constexpr uint32_t kWakeAcknowledgementLowDurationMs = 150;
 constexpr uint32_t kCommandListenTimeoutMs = 5000;
 
 enum class VoiceState : uint8_t {

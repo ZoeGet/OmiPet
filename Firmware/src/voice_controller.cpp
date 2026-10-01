@@ -45,16 +45,16 @@ bool VoiceController::notifyWakeWordDetected() {
 
   const uint32_t nowMs = millis();
   state_ = VoiceState::ListeningForCommand;
-  acknowledgementPhase_ = AcknowledgementPhase::LowTone;
+  acknowledgementPhase_ = AcknowledgementPhase::HighTone;
   acknowledgementPhaseStartedAtMs_ = nowMs;
   lastActivityAtMs_ = nowMs;
   if (!OmiPetBuzzer::buzzer.startTone(
-          kWakeAcknowledgementLowFrequencyHz,
-          kWakeAcknowledgementLowDurationMs)) {
-    Serial.println("[VOICE] low acknowledgement tone failed");
+          kWakeAcknowledgementHighFrequencyHz,
+          kWakeAcknowledgementHighDurationMs)) {
+    Serial.println("[VOICE] high acknowledgement tone failed");
   }
   OmiPetUi::setVoiceStatus("LISTENING");
-  Serial.println("[VOICE] wake accepted, acknowledgement=low, listening for command");
+  Serial.println("[VOICE] wake accepted, acknowledgement=high, listening for command");
   return true;
 }
 
@@ -90,24 +90,24 @@ void VoiceController::updateAcknowledgement(uint32_t nowMs) {
     return;
   }
 
-  if (acknowledgementPhase_ == AcknowledgementPhase::LowTone &&
+  if (acknowledgementPhase_ == AcknowledgementPhase::HighTone &&
       nowMs - acknowledgementPhaseStartedAtMs_ >=
-          kWakeAcknowledgementLowDurationMs) {
-    acknowledgementPhase_ = AcknowledgementPhase::HighTone;
+          kWakeAcknowledgementHighDurationMs) {
+    acknowledgementPhase_ = AcknowledgementPhase::LowTone;
     acknowledgementPhaseStartedAtMs_ = nowMs;
-    Serial.println("[VOICE] acknowledgement=high");
+    Serial.println("[VOICE] acknowledgement=low");
     if (!OmiPetBuzzer::buzzer.startTone(
-            kWakeAcknowledgementHighFrequencyHz,
-            kWakeAcknowledgementHighDurationMs)) {
-      Serial.println("[VOICE] high acknowledgement tone failed");
+            kWakeAcknowledgementLowFrequencyHz,
+            kWakeAcknowledgementLowDurationMs)) {
+      Serial.println("[VOICE] low acknowledgement tone failed");
       acknowledgementPhase_ = AcknowledgementPhase::None;
     }
     return;
   }
 
-  if (acknowledgementPhase_ == AcknowledgementPhase::HighTone &&
+  if (acknowledgementPhase_ == AcknowledgementPhase::LowTone &&
       nowMs - acknowledgementPhaseStartedAtMs_ >=
-          kWakeAcknowledgementHighDurationMs) {
+          kWakeAcknowledgementLowDurationMs) {
     acknowledgementPhase_ = AcknowledgementPhase::None;
     Serial.println("[VOICE] acknowledgement=complete");
   }
