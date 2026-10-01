@@ -13,9 +13,9 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 - `13` 颗 WS2812B-2020-V6 灯带驱动。
 - 无源蜂鸣器驱动。
 - Wi-Fi 异步连接和手机网页配网门户。
-- ICS-43434 原始 I²S 采集、RMS 音量分析和自适应语音活动检测。
+- ICS-43434 原始 I²S 采集、RMS 音量分析、自适应语音活动检测和 16-bit PCM 音频帧适配。
 
-下一阶段将继续完善 VAD、唤醒词 `Hi Omi`、离线指令解析和设备动作控制。
+下一阶段将继续接入唤醒词 `Hey Omi`、离线指令解析和设备动作控制；当前 WakeNet 模型尚未打包进固件。
 
 > **English** — The current firmware includes the display, environmental sensor, LED strip, passive buzzer, Wi-Fi provisioning, and verified ICS-43434 I²S capture with level-based speech activity detection. Wake-word detection and offline command handling are planned next.
 
@@ -70,6 +70,12 @@ OmiPetAudio::microphone.begin(
 - 音量窗口：约 `50 ms` / Level window: approximately `50 ms`
 - 输出指标：`avg_abs`、`rms`、`peak`、`noise`、`threshold`、`speech`
 
+
+### 语音唤醒状态 / Voice wake state
+
+当前固件已经准备好 `16 kHz`、`16-bit`、单声道、每帧 `480` 个采样点的唤醒输入，并提供 `IDLE` / `LISTENING` 状态机。真实唤醒词模型接入后，识别 `Hey Omi` 会触发约 `450 ms` 的低高双音确认反馈：低音 `1800 Hz`，高音 `2800 Hz`。当前仓库尚未包含 WakeNet 模型文件和模型分区，因此普通声音不会被固件误当作唤醒词。
+
+> **English** — The firmware now provides WakeNet-ready `16 kHz`, `16-bit`, mono frames with 480 samples per frame and an `IDLE` / `LISTENING` state machine. Once the real wake-word backend is integrated, `Hey Omi` will trigger a non-blocking low-to-high dual-tone acknowledgement of about 450 ms. WakeNet model data and its model partition are not included yet, so ordinary speech is not treated as a wake word.
 ## 硬件资料 / Hardware Resources
 
 - [原理图 / Schematic](Hardware/Schematic/Omi_Schematic.pdf)
@@ -144,8 +150,11 @@ AHT20 上电初期的读数通常接近环境值。随着 ESP32-S3、LCD 背光�
 - [x] Wi-Fi 网页配网 / Wi-Fi captive-portal provisioning
 - [x] ICS-43434 原始 I²S 采集 / Raw ICS-43434 I²S capture
 - [x] 音量统计和基础语音活动检测 / Level statistics and basic speech activity detection
+- [x] 16-bit PCM 音频帧适配 / 16-bit PCM audio frame adaptation
+- [x] 唤醒后双音反馈状态机 / Post-wake dual-tone feedback state machine
+- [ ] WakeNet/ESP-SR 模型组件和模型分区 / WakeNet/ESP-SR model component and model partition
 - [ ] 更稳健的 VAD / Robust VAD
-- [ ] `Hi Omi` 离线唤醒词 / Offline `Hi Omi` wake word
+- [ ] `Hey Omi` 离线唤醒词 / Offline `Hey Omi` wake word
 - [ ] 自然语言指令解析 / Natural-language command parsing
 - [ ] 语音驱动的设备动作 / Voice-controlled device actions
 

@@ -11,6 +11,9 @@ void setEnvironment(float temperatureC, float humidityPercent, bool valid);
 //  更新 Wi-Fi 状态显示 / Update the Wi-Fi status display
 void setNetworkStatus(bool connected, bool provisioning);
 
+//  更新语音交互状态显示 / Update the voice interaction status display
+void setVoiceStatus(const char* statusText);
+
 //  更新时钟和动画 / Update the clock and animation
 void update();
 

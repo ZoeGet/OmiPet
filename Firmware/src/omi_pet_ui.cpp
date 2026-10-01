@@ -83,6 +83,7 @@ float gTemperatureC = 0.0F;
 float gHumidityPercent = 0.0F;
 bool gNetworkConnected = false;
 bool gNetworkProvisioning = false;
+const char* gVoiceStatus = "IDLE";
 uint16_t gGlyphBitmap[15 * 21] = {};
 
 const Glyph* findGlyph(char character) {
@@ -261,6 +262,11 @@ void drawNetworkStatus() {
   drawCenteredText(405, statusText, 1, statusColor);
 }
 
+void drawVoiceStatus() {
+  //  局部刷新语音状态区域 / Refresh only the voice status area
+  OmiPetDisplay::lcd.fillRect(0, 382, kScreenWidth, 18, kBackground);
+  drawCenteredText(383, gVoiceStatus, 1, kYellow);
+}
 void drawStaticUi() {
   OmiPetDisplay::lcd.fillScreen(kBackground);
   drawCenteredText(10, "OMIPET", 2, kAccent);
@@ -270,6 +276,7 @@ void drawStaticUi() {
 
   drawEnvironment();
   drawCenteredText(364, "BAT --%", 2, kYellow);
+  drawVoiceStatus();
   drawNetworkStatus();
 }
 
@@ -306,6 +313,16 @@ void setNetworkStatus(bool connected, bool provisioning) {
   }
 }
 
+void setVoiceStatus(const char* statusText) {
+  if (statusText == nullptr || std::strcmp(gVoiceStatus, statusText) == 0) {
+    return;
+  }
+
+  gVoiceStatus = statusText;
+  if (gUiStarted) {
+    drawVoiceStatus();
+  }
+}
 void update() {
   const uint32_t seconds = currentClockSeconds();
   if (seconds == gLastRenderedSecond) {
