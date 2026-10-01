@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <algorithm>
+#include <cmath>
+#include <cstdint>
 #include "aht20_sensor.h"
 #include "buzzer.h"
 #include "NV3007_Display.h"
@@ -9,10 +12,68 @@
 
 namespace {
 
-constexpr size_t kMicDiagnosticWordCount = 64;
+constexpr size_t kMicDiagnosticFrameCount = 800;
+constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;
 int32_t gMicDiagnosticWords[kMicDiagnosticWordCount] = {};
 uint32_t gLastMicDiagnosticMs = 0;
 uint32_t gLastSystemHeartbeatMs = 0;
+uint32_t gMicNoiseFloorRms = 0;
+bool gMicNoiseFloorInitialized = false;
+
+struct MicLevelStats {
+  uint32_t averageAbsolute = 0;
+  uint32_t rms = 0;
+  uint32_t peak = 0;
+  size_t frameCount = 0;
+};
+
+//  计算选定声道的音量统计 / Calculate level statistics for the selected channel
+MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
+                                     OmiPetAudio::MicChannel channel) {
+  MicLevelStats stats;
+  const size_t selectedSlot = static_cast<size_t>(channel);
+  uint64_t absoluteSum = 0;
+  uint64_t squareSum = 0;
+
+  const size_t frameCount = wordCount / 2;
+  for (size_t frame = 0; frame < frameCount; ++frame) {
+    const int32_t rawSample = words[frame * 2 + selectedSlot];
+    const int32_t sample = rawSample >> 8;
+    const int64_t signedSample = sample;
+    const uint64_t magnitude = signedSample < 0
+                                   ? static_cast<uint64_t>(-signedSample)
+                                   : static_cast<uint64_t>(signedSample);
+    absoluteSum += magnitude;
+    squareSum += magnitude * magnitude;
+    stats.peak = std::max(stats.peak, static_cast<uint32_t>(magnitude));
+    ++stats.frameCount;
+  }
+
+  if (stats.frameCount == 0U) {
+    return stats;
+  }
+
+  stats.averageAbsolute =
+      static_cast<uint32_t>(absoluteSum / stats.frameCount);
+  stats.rms = static_cast<uint32_t>(
+      std::sqrt(static_cast<double>(squareSum) / stats.frameCount));
+  return stats;
+}
+
+//  更新自适应噪声底并检测语音 / Update the adaptive noise floor and detect speech
+bool detectSpeech(uint32_t rms, uint32_t& threshold) {
+  if (!gMicNoiseFloorInitialized) {
+    gMicNoiseFloorRms = rms;
+    gMicNoiseFloorInitialized = true;
+  }
+
+  threshold = std::max(gMicNoiseFloorRms * 3U, gMicNoiseFloorRms + 1000U);
+  const bool speechDetected = rms > threshold;
+  if (!speechDetected) {
+    gMicNoiseFloorRms = (gMicNoiseFloorRms * 15U + rms) / 16U;
+  }
+  return speechDetected;
+}
 
 //  每秒打印一次麦克风原始统计 / Print raw microphone statistics once per second
 void updateMicrophoneDiagnostic() {
@@ -35,15 +96,19 @@ void updateMicrophoneDiagnostic() {
     return;
   }
 
-  const OmiPetAudio::RawSampleStats stats =
-      OmiPetAudio::analyzeRawSamples(gMicDiagnosticWords, wordCount);
-  const uint64_t averageAbsolute = stats.absoluteSum / stats.sampleCount;
-  Serial.printf("[MIC] words=%u min=%ld max=%ld nonzero=%u avg_abs=%llu\n",
-                static_cast<unsigned>(stats.sampleCount),
-                static_cast<long>(stats.minimum),
-                static_cast<long>(stats.maximum),
-                static_cast<unsigned>(stats.nonZeroCount),
-                static_cast<unsigned long long>(averageAbsolute));
+  const MicLevelStats stats = analyzeMicrophoneLevel(
+      gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
+  uint32_t speechThreshold = 0;
+  const bool speechDetected = detectSpeech(stats.rms, speechThreshold);
+  Serial.printf(
+      "[MIC] frames=%u avg_abs=%lu rms=%lu peak=%lu noise=%lu threshold=%lu speech=%s\n",
+      static_cast<unsigned>(stats.frameCount),
+      static_cast<unsigned long>(stats.averageAbsolute),
+      static_cast<unsigned long>(stats.rms),
+      static_cast<unsigned long>(stats.peak),
+      static_cast<unsigned long>(gMicNoiseFloorRms),
+      static_cast<unsigned long>(speechThreshold),
+      speechDetected ? "yes" : "no");
 }
 
 //  持续输出系统心跳 / Print a persistent system heartbeat
@@ -96,7 +161,9 @@ void setup() {
   OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
                              OmiPetNetwork::wifi.provisioning());
   //  初始化麦克风采集诊断 / Initialize the microphone capture diagnostic
-  const bool microphoneReady = OmiPetAudio::microphone.begin();
+  //  当前硬件使用右声道槽 / The current hardware uses the right I2S slot
+  const bool microphoneReady = OmiPetAudio::microphone.begin(
+      OmiPetAudio::kMicDefaultSampleRateHz, OmiPetAudio::MicChannel::Right);
   Serial.printf("[MIC] init=%s rate=%lu sck=%u ws=%u sd=%u\n",
                 microphoneReady ? "ok" : "failed",
                 static_cast<unsigned long>(OmiPetAudio::microphone.sampleRateHz()),
