@@ -11,6 +11,7 @@ constexpr char kProvisioningSsid[] = "OmiPet-Setup";
 constexpr char kProvisioningPassword[] = "omipet123";
 constexpr uint32_t kProvisioningTimeoutSeconds = 180;
 constexpr uint32_t kWifiConnectTimeoutSeconds = 20;
+constexpr uint32_t kInitialWifiConnectWindowMs = 5000;
 
 // WiFiManager 非阻塞配网封装 / Non-blocking WiFiManager provisioning wrapper
 class WifiManagerService {
@@ -29,8 +30,10 @@ class WifiManagerService {
 
  private:
   WiFiManager manager_;
+  uint32_t connectStartedAtMs_ = 0;
   bool initialized_ = false;
   bool provisioning_ = false;
+  bool portalStarted_ = false;
 };
 
 extern WifiManagerService wifi;
