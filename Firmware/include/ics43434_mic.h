@@ -12,7 +12,7 @@ constexpr uint8_t kMicSdPin = 7;
 constexpr uint32_t kMicDefaultSampleRateHz = 16000;
 constexpr uint8_t kMicBitsPerSample = 32;
 
-//  麦克风只输出选定声道，原始采集保留双声道槽用于验证 / The microphone outputs one selected slot; raw capture keeps both slots for validation
+//  当前硬件实测有效声道为右声道槽，原始采集保留双声道槽用于验证 / Current hardware testing confirms the right I2S slot; raw capture keeps both slots for validation
 enum class MicChannel : uint8_t {
   Left = 0,
   Right = 1,
@@ -33,7 +33,7 @@ class Ics43434Mic {
 
   //  使用 32-bit 槽启动 Philips I2S 接收 / Start Philips I2S RX with 32-bit slots
   bool begin(uint32_t sampleRateHz = kMicDefaultSampleRateHz,
-             MicChannel channel = MicChannel::Left);
+             MicChannel channel = MicChannel::Right);
 
   //  停止 I2S 外设 / Stop the I2S peripheral
   void end();
@@ -58,7 +58,7 @@ class Ics43434Mic {
 
  private:
   uint32_t sampleRateHz_ = kMicDefaultSampleRateHz;
-  MicChannel channel_ = MicChannel::Left;
+  MicChannel channel_ = MicChannel::Right;
   bool initialized_ = false;
   i2s_port_t port_ = I2S_NUM_0;
 };
