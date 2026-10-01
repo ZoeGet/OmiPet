@@ -18,9 +18,6 @@ void setup() {
   OmiPetDisplay::lcd.begin(8000000UL);
   OmiPetDisplay::lcd.setBacklight(true);
 
-  // 初始化 Wi-Fi；无已保存配置时开启网页配网热点 / Initialize Wi-Fi; start the web portal when no saved configuration exists
-  OmiPetNetwork::wifi.begin();
-
   // 初始化 AHT20 并尝试获取首个测量值 / Initialize AHT20 and try to obtain the first measurement
   const bool sensorReady = OmiPetSensor::aht20.begin();
   if (sensorReady) {
@@ -31,13 +28,26 @@ void setup() {
   OmiPetUi::setEnvironment(initialReading.temperatureC,
                            initialReading.humidityPercent,
                            initialReading.valid && !initialReading.stale);
+  // 先绘制界面，再执行可能等待 Wi-Fi 的连接流程 / Draw the UI before starting the potentially waiting Wi-Fi connection flow
+  OmiPetUi::setNetworkStatus(false, false);
   OmiPetUi::begin();
+
+  // 初始化 Wi-Fi；无已保存配置时开启网页配网热点 / Initialize Wi-Fi; start the web portal when no saved configuration exists
+  OmiPetNetwork::wifi.begin();
+  OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
+                             OmiPetNetwork::wifi.provisioning());
+
+  // 从启动流程完成后开始计时，避免 Wi-Fi 配网等待影响蜂鸣时间 /
+  // Start timing after setup completes so Wi-Fi provisioning does not affect the tone timing
 }
 
 void loop() {
   // 处理 WiFiManager 网页配网和连接状态 / Process WiFiManager provisioning and connection state
   OmiPetNetwork::wifi.update();
+  OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
+                             OmiPetNetwork::wifi.provisioning());
 
+  // 启动 3 秒后播放 500 ms 测试音 / Play a 500 ms test tone 3 seconds after startup
   // 每 5 秒读取一次温湿度，降低传感器自热和总线占用 / Read every 5 seconds to reduce sensor self-heating and bus usage
   static uint32_t lastSensorReadMs = millis();
   if (millis() - lastSensorReadMs >= 5000U) {

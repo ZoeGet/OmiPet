@@ -68,6 +68,7 @@ constexpr uint16_t kPetColor = OmiPetDisplay::Display::color565(255, 180, 80);
 constexpr uint16_t kWhite = OmiPetDisplay::Display::color565(245, 248, 255);
 constexpr uint16_t kGreen = OmiPetDisplay::Display::color565(100, 235, 150);
 constexpr uint16_t kYellow = OmiPetDisplay::Display::color565(255, 220, 80);
+constexpr uint16_t kRed = OmiPetDisplay::Display::color565(255, 90, 90);
 constexpr uint16_t kDark = OmiPetDisplay::Display::color565(5, 12, 28);
 
 constexpr int16_t kScreenWidth = OmiPetDisplay::kPanelWidth;
@@ -80,6 +81,8 @@ bool gUiStarted = false;
 bool gEnvironmentValid = false;
 float gTemperatureC = 0.0F;
 float gHumidityPercent = 0.0F;
+bool gNetworkConnected = false;
+bool gNetworkProvisioning = false;
 uint16_t gGlyphBitmap[15 * 21] = {};
 
 const Glyph* findGlyph(char character) {
@@ -242,6 +245,22 @@ void drawEnvironment() {
   drawCenteredText(334, humidityText, 2, kAccent);
 }
 
+void drawNetworkStatus() {
+  const char* statusText = "WIFI --";
+  uint16_t statusColor = kRed;
+  if (gNetworkConnected) {
+    statusText = "WIFI OK";
+    statusColor = kGreen;
+  } else if (gNetworkProvisioning) {
+    statusText = "WIFI SET";
+    statusColor = kYellow;
+  }
+
+  // 局部刷新网络状态，避免每次循环重复刷屏 / Refresh only the network status area to avoid repeated full updates
+  OmiPetDisplay::lcd.fillRect(0, 400, kScreenWidth, 28, kBackground);
+  drawCenteredText(405, statusText, 1, statusColor);
+}
+
 void drawStaticUi() {
   OmiPetDisplay::lcd.fillScreen(kBackground);
   drawCenteredText(10, "OMIPET", 2, kAccent);
@@ -251,7 +270,7 @@ void drawStaticUi() {
 
   drawEnvironment();
   drawCenteredText(364, "BAT --%", 2, kYellow);
-  drawCenteredText(405, "DEMO CLOCK", 1, kAccent);
+  drawNetworkStatus();
 }
 
 }  // 匿名命名空间 / Anonymous namespace
@@ -271,6 +290,19 @@ void setEnvironment(float temperatureC, float humidityPercent, bool valid) {
   gEnvironmentValid = valid;
   if (gUiStarted) {
     drawEnvironment();
+  }
+}
+
+void setNetworkStatus(bool connected, bool provisioning) {
+  if (gNetworkConnected == connected &&
+      gNetworkProvisioning == provisioning) {
+    return;
+  }
+
+  gNetworkConnected = connected;
+  gNetworkProvisioning = provisioning;
+  if (gUiStarted) {
+    drawNetworkStatus();
   }
 }
 
