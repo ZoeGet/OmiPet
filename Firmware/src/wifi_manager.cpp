@@ -15,9 +15,12 @@ bool WifiManagerService::begin() {
   //  只启动已保存凭据的异步连接，不在 setup 中调用 autoConnect / Start an asynchronous connection with saved credentials without calling autoConnect from setup
   WiFi.begin();
   connectStartedAtMs_ = millis();
+  lastReconnectAttemptMs_ = connectStartedAtMs_;
+  disconnectedAtMs_ = 0;
   initialized_ = true;
   provisioning_ = false;
   portalStarted_ = false;
+  everConnected_ = false;
   return connected();
 }
 
@@ -27,6 +30,8 @@ void WifiManagerService::update() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
+    everConnected_ = true;
+    disconnectedAtMs_ = 0;
     provisioning_ = false;
     if (portalStarted_) {
       //  连接成功后停止配置门户，避免继续占用 AP 和 Web 资源 / Stop the portal after connection to release AP and web resources
@@ -36,17 +41,45 @@ void WifiManagerService::update() {
     return;
   }
 
-  if (!portalStarted_ &&
+  if (portalStarted_) {
+    //  配网门户运行期间只处理网页请求，不重复发起连接流程 / Process the portal without starting another connection flow
+    manager_.process();
+    return;
+  }
+
+  if (!everConnected_ &&
       millis() - connectStartedAtMs_ >= kInitialWifiConnectWindowMs) {
     //  超时后才启动门户，避免启动阶段被 Wi-Fi 连接阻塞 / Start the portal only after timeout so Wi-Fi cannot block startup
     portalStarted_ = manager_.startConfigPortal(kProvisioningSsid,
                                                 kProvisioningPassword);
     provisioning_ = portalStarted_;
+    return;
   }
 
-  if (portalStarted_) {
-    //  非阻塞模式必须在 loop 中持续处理网页请求 / Non-blocking mode must process web requests in loop
-    manager_.process();
+  if (everConnected_) {
+    const uint32_t nowMs = millis();
+    if (disconnectedAtMs_ == 0U) {
+      disconnectedAtMs_ = nowMs;
+      Serial.println("[WIFI] connection lost, retry window started");
+    }
+
+    if (nowMs - disconnectedAtMs_ >= kWifiReconnectGracePeriodMs) {
+      //  重连超时后开启配网门户 / Start provisioning after the reconnect grace period expires
+      portalStarted_ = manager_.startConfigPortal(kProvisioningSsid,
+                                                  kProvisioningPassword);
+      provisioning_ = portalStarted_;
+      return;
+    }
+
+    if (nowMs - lastReconnectAttemptMs_ >= kWifiReconnectIntervalMs) {
+      //  在宽限期内主动重连，不立即开启配网热点 / Retry during the grace period without opening the portal immediately
+      lastReconnectAttemptMs_ = nowMs;
+      Serial.println("[WIFI] disconnected, reconnecting");
+      if (!WiFi.reconnect()) {
+        //  某些断线状态下 reconnect 可能失败，使用已保存凭据重新启动连接 / Restart the connection with saved credentials when reconnect fails
+        WiFi.begin();
+      }
+    }
   }
 }
 
