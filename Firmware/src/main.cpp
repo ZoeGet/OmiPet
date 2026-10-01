@@ -9,6 +9,8 @@
 #include "omi_pet_ui.h"
 #include "wifi_manager.h"
 #include "ics43434_mic.h"
+#include "pcm_audio_frame_buffer.h"
+#include "voice_controller.h"
 
 namespace {
 
@@ -40,6 +42,10 @@ struct MicLevelStats {
 };
 
 MicLevelStats gLastMicStats;
+OmiPetAudio::PcmAudioFrameBuffer gWakeWordAudioBuffer;
+int16_t gWakeWordPcmFrame[OmiPetAudio::kWakeWordFrameSamples] = {};
+uint32_t gWakeWordFrameCount = 0;
+uint32_t gLastAudioFrameLogMs = 0;
 
 //  计算选定声道的音量统计 / Calculate level statistics for the selected channel
 MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
@@ -147,6 +153,8 @@ void updateMicrophoneDiagnostic() {
     return;
   }
 
+  gWakeWordAudioBuffer.pushInterleavedWords(
+      gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
   gLastMicStats = analyzeMicrophoneLevel(
       gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
   gLastSpeechCandidate =
@@ -177,6 +185,38 @@ void updateMicrophoneDiagnostic() {
       static_cast<unsigned>(gSpeechQuietWindows));
 }
 
+//  消费固定长度 PCM 音频帧并输出缓冲诊断 / Consume fixed-size PCM frames and print buffer diagnostics
+void updateWakeWordAudioFrames() {
+  size_t processedFrameCount = 0;
+  while (gWakeWordAudioBuffer.popFrame(
+      gWakeWordPcmFrame, OmiPetAudio::kWakeWordFrameSamples)) {
+    ++processedFrameCount;
+  }
+  gWakeWordFrameCount += static_cast<uint32_t>(processedFrameCount);
+
+  const uint32_t nowMs = millis();
+  if (nowMs - gLastAudioFrameLogMs < kMicLogIntervalMs) {
+    return;
+  }
+  gLastAudioFrameLogMs = nowMs;
+  Serial.printf(
+      "[AUDIO] pcm16_frames=%lu samples_per_frame=%u rate=%lu channel=right queued=%u dropped=%lu\n",
+      static_cast<unsigned long>(gWakeWordFrameCount),
+      static_cast<unsigned>(OmiPetAudio::kWakeWordFrameSamples),
+      static_cast<unsigned long>(OmiPetAudio::kMicDefaultSampleRateHz),
+      static_cast<unsigned>(gWakeWordAudioBuffer.queuedFrames()),
+      static_cast<unsigned long>(gWakeWordAudioBuffer.droppedFrames()));
+}
+//  处理临时语音唤醒测试命令 / Process the temporary voice wake test command
+void updateVoiceDebugInput() {
+  while (Serial.available() > 0) {
+    const int input = Serial.read();
+    if (input == 'w') {
+      Serial.println("[VOICE] debug wake command");
+      OmiPetVoice::voice.notifyWakeWordDetected();
+    }
+  }
+}
 //  持续输出系统心跳 / Print a persistent system heartbeat
 void updateSystemHeartbeat() {
   if (millis() - gLastSystemHeartbeatMs < 2000U) {
@@ -203,6 +243,7 @@ void setup() {
 
   //  初始化无源蜂鸣器，但不自动播放声音 / Initialize the passive buzzer without playing sound automatically
   OmiPetBuzzer::buzzer.begin();
+  OmiPetVoice::voice.begin();
 
   //  初始化 LCD 并打开背光 / Initialize the LCD and enable the backlight
   OmiPetDisplay::lcd.begin(8000000UL);
@@ -243,6 +284,9 @@ void loop() {
   OmiPetNetwork::wifi.update();
   updateSystemHeartbeat();
   updateMicrophoneDiagnostic();
+  updateWakeWordAudioFrames();
+  updateVoiceDebugInput();
+  OmiPetVoice::voice.update(gSpeechActive);
   OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
                              OmiPetNetwork::wifi.provisioning());
 
