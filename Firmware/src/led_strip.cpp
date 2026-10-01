@@ -72,4 +72,4 @@ const Adafruit_NeoPixel& Strip::pixels() const { return pixels_; }
 
 Strip strip;
 
-}  // namespace OmiPetLed
+}  //  OmiPetLed 命名空间 / OmiPetLed namespace

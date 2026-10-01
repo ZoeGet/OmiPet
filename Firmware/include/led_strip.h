@@ -5,9 +5,9 @@
 
 namespace OmiPetLed {
 
-// Latest schematic mapping: the LED net is connected to ESP32-S3 GPIO47.
+//  最新原理图映射：LED 网络连接到 ESP32-S3 GPIO47 / Latest schematic mapping: the LED net connects to ESP32-S3 GPIO47
 constexpr uint8_t kDataPin = 47;
-constexpr uint16_t kLedCount = 13; // LED2 ... LED14 in the schematic
+constexpr uint16_t kLedCount = 13; //  原理图中的 LED2 至 LED14 / LED2 through LED14 in the schematic
 
 class Strip {
  public:
@@ -39,4 +39,4 @@ class Strip {
 
 extern Strip strip;
 
-}  // namespace OmiPetLed
+}  //  OmiPetLed 命名空间 / OmiPetLed namespace

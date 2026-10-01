@@ -3,16 +3,16 @@
 namespace OmiPetDisplay {
 namespace {
 
-// NV3007 常用命令 / Common NV3007 commands
+//  NV3007 常用命令 / Common NV3007 commands
 constexpr uint8_t kCommandMemoryAccessControl = 0x36;
 constexpr uint8_t kCommandColumnAddressSet = 0x2A;
 constexpr uint8_t kCommandPageAddressSet = 0x2B;
 constexpr uint8_t kCommandMemoryWrite = 0x2C;
 
-// 各旋转方向对应的 MADCTL 值 / MADCTL values for each rotation
+//  各旋转方向对应的 MADCTL 值 / MADCTL values for each rotation
 constexpr uint8_t kMadctlValues[] = {0x00, 0xC0, 0x60, 0xA0};
 
-// 厂家提供的 NV3007 初始化序列 / NV3007 initialization sequence from the panel vendor
+//  厂家提供的 NV3007 初始化序列 / NV3007 initialization sequence from the panel vendor
 constexpr Display::InitCommand kInitSequence[] = {
     {0xFF, {0xA5, 0x0, 0x0, 0x0, 0x0}, 1, 0},
     {0x9A, {0x08, 0x0, 0x0, 0x0, 0x0}, 1, 0},
@@ -135,7 +135,7 @@ constexpr Display::InitCommand kInitSequence[] = {
     {0x29, {0x0, 0x0, 0x0, 0x0, 0x0}, 0, 200},
 };
 
-}  // 匿名命名空间 / Anonymous namespace
+}  //  匿名命名空间 / Anonymous namespace
 
 Display::Display()
     : spi_(SPI), settings_(SPISettings(8000000UL, MSBFIRST, SPI_MODE0)) {}
@@ -144,7 +144,7 @@ bool Display::begin(uint32_t frequency) {
   frequency_ = frequency;
   settings_ = SPISettings(frequency_, MSBFIRST, SPI_MODE0);
 
-  // 配置控制引脚并设置安全默认电平 / Configure control pins and safe default levels
+  //  配置控制引脚并设置安全默认电平 / Configure control pins and safe default levels
   pinMode(kCsPin, OUTPUT);
   pinMode(kDcPin, OUTPUT);
   pinMode(kResetPin, OUTPUT);
@@ -156,13 +156,13 @@ bool Display::begin(uint32_t frequency) {
 
   spi_.begin(kSckPin, -1, kMosiPin, kCsPin);
 
-  // 执行硬件复位 / Perform a hardware reset
+  //  执行硬件复位 / Perform a hardware reset
   digitalWrite(kResetPin, LOW);
   delay(100);
   digitalWrite(kResetPin, HIGH);
   delay(100);
 
-  // 写入面板寄存器并应用默认方向 / Write panel registers and apply the default rotation
+  //  写入面板寄存器并应用默认方向 / Write panel registers and apply the default rotation
   writeInitSequence();
   setRotation(0);
   initialized_ = true;
@@ -195,7 +195,7 @@ void Display::setBacklight(bool enabled) {
 }
 
 void Display::writeCommand(uint8_t command) {
-  // 发送无参数命令 / Send a command without parameters
+  //  发送无参数命令 / Send a command without parameters
   spi_.beginTransaction(settings_);
   digitalWrite(kCsPin, LOW);
   digitalWrite(kDcPin, LOW);
@@ -206,7 +206,7 @@ void Display::writeCommand(uint8_t command) {
 
 void Display::writeCommandData(uint8_t command, const uint8_t* data,
                                size_t length) {
-  // 发送命令及参数 / Send a command followed by parameters
+  //  发送命令及参数 / Send a command followed by parameters
   spi_.beginTransaction(settings_);
   digitalWrite(kCsPin, LOW);
   digitalWrite(kDcPin, LOW);
@@ -222,7 +222,7 @@ void Display::writeCommandData(uint8_t command, const uint8_t* data,
 }
 
 void Display::writeInitSequence() {
-  // 按顺序执行厂家初始化表 / Execute the vendor initialization table in order
+  //  按顺序执行厂家初始化表 / Execute the vendor initialization table in order
   for (const InitCommand& item : kInitSequence) {
     writeCommandData(item.command, item.data, item.dataLength);
     if (item.delayMs > 0) {
@@ -233,7 +233,7 @@ void Display::writeInitSequence() {
 
 void Display::setAddressWindowUnchecked(uint16_t x0, uint16_t y0,
                                          uint16_t x1, uint16_t y1) {
-  // 坐标已经过调用方检查 / Coordinates are validated by the caller
+  //  坐标已经过调用方检查 / Coordinates are validated by the caller
   const uint8_t columnData[] = {
       static_cast<uint8_t>((x0 + xOffset_) >> 8),
       static_cast<uint8_t>(x0 + xOffset_),
@@ -424,4 +424,4 @@ bool Display::initialized() const { return initialized_; }
 
 Display lcd;
 
-}  // OmiPetDisplay 命名空间 / OmiPetDisplay namespace
+}  //  OmiPetDisplay 命名空间 / OmiPetDisplay namespace

@@ -3,10 +3,10 @@
 namespace OmiPetBuzzer {
 namespace {
 
-// 10-bit LEDC 分辨率对应的最大占空比 / Maximum duty value for 10-bit LEDC resolution
+//  10-bit LEDC 分辨率对应的最大占空比 / Maximum duty value for 10-bit LEDC resolution
 constexpr uint32_t kPwmMaxDuty = (1UL << kBuzzerPwmResolutionBits) - 1UL;
 
-}  // 匿名命名空间 / Anonymous namespace
+}  //  匿名命名空间 / Anonymous namespace
 
 bool PassiveBuzzer::begin(uint8_t pin, uint8_t channel) {
   pin_ = pin;
@@ -16,11 +16,11 @@ bool PassiveBuzzer::begin(uint8_t pin, uint8_t channel) {
   muted_ = false;
   lastError_ = BuzzerError::None;
 
-  // 先将引脚配置为低电平，避免上电误鸣叫 / Drive the pin low first to prevent a startup chirp
+  //  先将引脚配置为低电平，避免上电误鸣叫 / Drive the pin low first to prevent a startup chirp
   pinMode(pin_, OUTPUT);
   digitalWrite(pin_, LOW);
 
-  // 配置固定 LEDC 分辨率和初始频率 / Configure a fixed LEDC resolution and initial frequency
+  //  配置固定 LEDC 分辨率和初始频率 / Configure a fixed LEDC resolution and initial frequency
   if (ledcSetup(channel_, kBuzzerDefaultFrequencyHz,
                 kBuzzerPwmResolutionBits) == 0U) {
     return fail(BuzzerError::PwmSetupFailed);
@@ -66,7 +66,7 @@ void PassiveBuzzer::stop() {
     return;
   }
 
-  // 先关闭占空比，再解除引脚复用并拉低 / Disable duty first, then detach the pin and drive it low
+  //  先关闭占空比，再解除引脚复用并拉低 / Disable duty first, then detach the pin and drive it low
   ledcWrite(channel_, 0);
   ledcDetachPin(pin_);
   pinMode(pin_, OUTPUT);
@@ -90,7 +90,7 @@ void PassiveBuzzer::setMute(bool muted) {
     return;
   }
 
-  // 静音只关闭 PWM 占空比，恢复时重新应用原音符 / Mute only disables PWM duty; restore the current tone when unmuted
+  //  静音只关闭 PWM 占空比，恢复时重新应用原音符 / Mute only disables PWM duty; restore the current tone when unmuted
   if (muted_) {
     ledcWrite(channel_, 0);
   } else {
@@ -115,7 +115,7 @@ bool PassiveBuzzer::applyTone(uint32_t frequencyHz, uint8_t dutyPercent) {
     return fail(BuzzerError::PwmSetupFailed);
   }
 
-  // 静音时保持占空比为 0，但仍保留播放计时 / Keep duty at zero while muted, but preserve playback timing
+  //  静音时保持占空比为 0，但仍保留播放计时 / Keep duty at zero while muted, but preserve playback timing
   const uint32_t duty = muted_
                             ? 0U
                             : (kPwmMaxDuty * dutyPercent) / 100U;
@@ -132,4 +132,4 @@ bool PassiveBuzzer::fail(BuzzerError error) {
 
 PassiveBuzzer buzzer;
 
-}  // OmiPetBuzzer 命名空间 / OmiPetBuzzer namespace
+}  //  OmiPetBuzzer 命名空间 / OmiPetBuzzer namespace

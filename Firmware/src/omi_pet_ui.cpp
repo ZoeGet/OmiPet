@@ -16,7 +16,7 @@ struct Glyph {
   uint8_t rows[7];
 };
 
-// 简单 5×7 字模 / Simple 5x7 bitmap font
+//  简单 5×7 字模 / Simple 5x7 bitmap font
 constexpr Glyph kFont[] = {
     {' ', {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
     {'-', {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}},
@@ -158,13 +158,13 @@ uint32_t currentClockSeconds() {
 void drawPet(bool blink) {
   OmiPetDisplay::lcd.fillRect(12, 42, 118, 132, kBackground);
 
-  // 耳朵和脸部 / Ears and face
+  //  耳朵和脸部 / Ears and face
   OmiPetDisplay::lcd.fillRect(31, 48, 22, 20, kPetColor);
   OmiPetDisplay::lcd.fillRect(89, 48, 22, 20, kPetColor);
   OmiPetDisplay::lcd.fillRect(24, 60, 94, 94, kPetColor);
   OmiPetDisplay::lcd.drawRect(24, 60, 94, 94, kAccent);
 
-  // 眼睛和嘴巴 / Eyes and mouth
+  //  眼睛和嘴巴 / Eyes and mouth
   if (blink) {
     OmiPetDisplay::lcd.fillRect(40, 88, 20, 4, kDark);
     OmiPetDisplay::lcd.fillRect(82, 88, 20, 4, kDark);
@@ -181,7 +181,7 @@ void drawPet(bool blink) {
 }
 
 void drawPetEyes(bool blink) {
-  // 只刷新眼睛区域，避免眨眼时重绘整张脸 / Refresh only the eye areas to avoid redrawing the whole face
+  //  只刷新眼睛区域，避免眨眼时重绘整张脸 / Refresh only the eye areas to avoid redrawing the whole face
   OmiPetDisplay::lcd.fillRect(40, 76, 20, 32, kPetColor);
   OmiPetDisplay::lcd.fillRect(82, 76, 20, 32, kPetColor);
   if (blink) {
@@ -238,7 +238,7 @@ void drawEnvironment() {
     std::strncpy(humidityText, "H --%", sizeof(humidityText) - 1U);
   }
 
-  // 分行局部刷新，避免覆盖整块屏幕 / Refresh each row locally to avoid redrawing the whole screen
+  //  分行局部刷新，避免覆盖整块屏幕 / Refresh each row locally to avoid redrawing the whole screen
   OmiPetDisplay::lcd.fillRect(0, 300, kScreenWidth, 26, kBackground);
   OmiPetDisplay::lcd.fillRect(0, 330, kScreenWidth, 26, kBackground);
   drawCenteredText(304, temperatureText, 2, kGreen);
@@ -256,7 +256,7 @@ void drawNetworkStatus() {
     statusColor = kYellow;
   }
 
-  // 局部刷新网络状态，避免每次循环重复刷屏 / Refresh only the network status area to avoid repeated full updates
+  //  局部刷新网络状态，避免每次循环重复刷屏 / Refresh only the network status area to avoid repeated full updates
   OmiPetDisplay::lcd.fillRect(0, 400, kScreenWidth, 28, kBackground);
   drawCenteredText(405, statusText, 1, statusColor);
 }
@@ -273,7 +273,7 @@ void drawStaticUi() {
   drawNetworkStatus();
 }
 
-}  // 匿名命名空间 / Anonymous namespace
+}  //  匿名命名空间 / Anonymous namespace
 
 void begin() {
   gClockStartMillis = millis();
@@ -321,4 +321,4 @@ void update() {
   }
 }
 
-}  // OmiPetUi 命名空间 / OmiPetUi namespace
+}  //  OmiPetUi 命名空间 / OmiPetUi namespace
