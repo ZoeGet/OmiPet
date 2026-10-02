@@ -87,3 +87,11 @@ AGENTS.md
 
 # Local inspection and patch artifacts
 tmp/
+
+Firmware/managed_components/
+Firmware/sdkconfig
+Firmware/target/
+
+# ESP-IDF generated machine-specific configuration
+Firmware/sdkconfig.*
+!Firmware/sdkconfig.defaults
