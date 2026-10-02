@@ -10,7 +10,7 @@
 namespace OmiPetAudio {
 
 //  WakeNet 音频帧配置 / WakeNet audio frame configuration
-constexpr size_t kWakeWordFrameSamples = 480;
+constexpr size_t kWakeWordFrameSamples = 512;
 constexpr size_t kWakeWordFrameQueueCapacity = 4;
 
 //  固定长度 PCM 音频帧缓冲 / Fixed-size PCM audio frame buffer

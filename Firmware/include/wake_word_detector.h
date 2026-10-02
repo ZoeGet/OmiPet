@@ -28,6 +28,9 @@ class WakeWordDetector {
   //  获取后端名称 / Get the backend name
   const char* backendName() const;
 
+  //  获取当前模型名称 / Get the active model name
+  const char* modelName() const;
+
   //  获取当前后端状态 / Get the backend state
   WakeWordDetectorState state() const;
 
@@ -39,6 +42,10 @@ class WakeWordDetector {
   uint32_t sampleRateHz_ = 0;
   size_t frameSamples_ = 0;
   uint32_t processedFrameCount_ = 0;
+  const char* modelName_ = "not-configured";
+  void* models_ = nullptr;
+  void* wakeNet_ = nullptr;
+  void* wakeNetModel_ = nullptr;
 };
 
 extern WakeWordDetector wakeWordDetector;

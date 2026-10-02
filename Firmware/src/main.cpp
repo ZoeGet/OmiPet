@@ -8,6 +8,8 @@
 #include "led_strip.h"
 #include "omi_pet_ui.h"
 #include "wifi_manager.h"
+
+//  OmiPet 固件主循环和模块编排 / OmiPet firmware entry point and module orchestration
 #include "ics43434_mic.h"
 #include "pcm_audio_frame_buffer.h"
 #include "wake_word_detector.h"
@@ -82,6 +84,7 @@ MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
 }
 
 //  更新自适应噪声底并检测语音 / Update the adaptive noise floor and detect speech
+//  根据动态噪声底估算语音候选状态 / Estimate speech candidacy from the adaptive noise floor
 bool detectSpeech(uint32_t rms, uint32_t& threshold) {
   if (!gMicNoiseFloorInitialized) {
     gMicNoiseFloorRms = rms;
@@ -129,6 +132,7 @@ bool updateSpeechState(bool speechCandidate) {
 }
 
 //  每 50 ms 处理音频窗口，每秒打印一次状态 / Process an audio window every 50 ms and print status once per second
+//  读取麦克风窗口并输出诊断数据 / Read a microphone window and print diagnostics
 void updateMicrophoneDiagnostic() {
   const uint32_t nowMs = millis();
   if (nowMs - gLastMicWindowMs < kMicWindowIntervalMs) {
@@ -194,6 +198,7 @@ void updateMicrophoneDiagnostic() {
 }
 
 //  消费固定长度 PCM 音频帧并输出缓冲诊断 / Consume fixed-size PCM frames and print buffer diagnostics
+//  将 PCM 帧提交给唤醒词后端 / Submit PCM frames to the wake-word backend
 void updateWakeWordAudioFrames() {
   size_t processedFrameCount = 0;
   while (gWakeWordAudioBuffer.popFrame(
@@ -244,6 +249,7 @@ void updateSystemHeartbeat() {
 
 }  //  匿名命名空间 / Anonymous namespace
 
+//  初始化所有硬件驱动和业务模块 / Initialize all hardware drivers and application modules
 void setup() {
   Serial.begin(115200);
   delay(1500);
@@ -293,11 +299,15 @@ void setup() {
 
   const bool wakeInputReady = OmiPetAudio::wakeWordDetector.begin(
       OmiPetAudio::kMicDefaultSampleRateHz, OmiPetAudio::kWakeWordFrameSamples);
-  Serial.printf("[WAKE] backend=%s input=%s status=unavailable model=not-configured\n",
+  Serial.printf("[WAKE] backend=%s input=%s status=%s model=%s\n",
                 OmiPetAudio::wakeWordDetector.backendName(),
-                wakeInputReady ? "ok" : "invalid");
+                wakeInputReady ? "ok" : "invalid",
+                OmiPetAudio::wakeWordDetector.available() ? "ready"
+                                                           : "unavailable",
+                OmiPetAudio::wakeWordDetector.modelName());
 }
 
+//  执行非阻塞业务更新 / Run non-blocking application updates
 void loop() {
   //  处理 WiFiManager 网页配网和连接状态 / Process WiFiManager provisioning and connection state
   OmiPetNetwork::wifi.update();
