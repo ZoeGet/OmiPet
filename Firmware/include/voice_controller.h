@@ -11,9 +11,10 @@ constexpr char kWakeWordPronunciation[] = "嘿！欧咪";
 //  唤醒确认音配置 / Wake acknowledgement tone configuration
 constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2600;
 constexpr uint32_t kWakeAcknowledgementLowFrequencyHz = 1800;
-constexpr uint32_t kWakeAcknowledgementHighDurationMs = 110;
-constexpr uint32_t kWakeAcknowledgementLowDurationMs = 70;
-constexpr uint32_t kWakeAcknowledgementSilenceDurationMs = 25;
+constexpr uint32_t kWakeAcknowledgementHighDurationMs = 100;
+constexpr uint32_t kWakeAcknowledgementLowDurationMs = 60;
+constexpr uint32_t kWakeAcknowledgementSilenceDurationMs = 20;
+constexpr uint32_t kPostAcknowledgementSpeechSuppressionMs = 200;
 constexpr uint32_t kCommandListenTimeoutMs = 5000;
 
 enum class VoiceState : uint8_t {
@@ -52,6 +53,9 @@ class VoiceController {
   //  查询是否正在等待用户指令 / Check whether a user command is expected
   bool listeningForCommand() const;
 
+  //  查询确认音是否暂时屏蔽麦克风判定 / Check whether microphone decisions are temporarily suppressed
+  bool speechInputSuppressed() const;
+
  private:
   void updateAcknowledgement(uint32_t nowMs);
   void enterIdle();
@@ -60,6 +64,7 @@ class VoiceController {
   AcknowledgementPhase acknowledgementPhase_ = AcknowledgementPhase::None;
   uint32_t acknowledgementPhaseStartedAtMs_ = 0;
   uint32_t lastActivityAtMs_ = 0;
+  uint32_t speechSuppressedUntilMs_ = 0;
   bool initialized_ = false;
 };
 

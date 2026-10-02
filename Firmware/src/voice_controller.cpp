@@ -10,6 +10,7 @@ bool VoiceController::begin() {
   acknowledgementPhase_ = AcknowledgementPhase::None;
   acknowledgementPhaseStartedAtMs_ = 0;
   lastActivityAtMs_ = millis();
+  speechSuppressedUntilMs_ = 0;
   initialized_ = true;
   OmiPetUi::setVoiceStatus("IDLE");
   return true;
@@ -85,6 +86,14 @@ bool VoiceController::listeningForCommand() const {
   return state_ == VoiceState::ListeningForCommand;
 }
 
+bool VoiceController::speechInputSuppressed() const {
+  if (acknowledgementPhase_ != AcknowledgementPhase::None) {
+    return true;
+  }
+
+  return static_cast<int32_t>(speechSuppressedUntilMs_ - millis()) > 0;
+}
+
 void VoiceController::updateAcknowledgement(uint32_t nowMs) {
   if (acknowledgementPhase_ == AcknowledgementPhase::None) {
     return;
@@ -120,6 +129,7 @@ void VoiceController::updateAcknowledgement(uint32_t nowMs) {
           kWakeAcknowledgementHighDurationMs) {
     OmiPetBuzzer::buzzer.stop();
     acknowledgementPhase_ = AcknowledgementPhase::None;
+    speechSuppressedUntilMs_ = nowMs + kPostAcknowledgementSpeechSuppressionMs;
     Serial.println("[VOICE] acknowledgement=complete");
   }
 }
@@ -129,6 +139,7 @@ void VoiceController::enterIdle() {
   state_ = VoiceState::Idle;
   acknowledgementPhase_ = AcknowledgementPhase::None;
   acknowledgementPhaseStartedAtMs_ = 0;
+  speechSuppressedUntilMs_ = 0;
   lastActivityAtMs_ = millis();
   OmiPetUi::setVoiceStatus("IDLE");
 }

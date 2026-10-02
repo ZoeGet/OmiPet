@@ -158,10 +158,17 @@ void updateMicrophoneDiagnostic() {
       gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
   gLastMicStats = analyzeMicrophoneLevel(
       gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
-  gLastSpeechCandidate =
-      detectSpeech(gLastMicStats.rms, gLastMicThreshold);
   const bool speechWasActive = gSpeechActive;
-  updateSpeechState(gLastSpeechCandidate);
+  if (OmiPetVoice::voice.speechInputSuppressed()) {
+    gLastSpeechCandidate = false;
+    gSpeechActive = false;
+    gSpeechStartWindows = 0;
+    gSpeechQuietWindows = 0;
+  } else {
+    gLastSpeechCandidate =
+        detectSpeech(gLastMicStats.rms, gLastMicThreshold);
+    updateSpeechState(gLastSpeechCandidate);
+  }
   if (speechWasActive != gSpeechActive) {
     Serial.printf("[VAD] event=%s rms=%lu threshold=%lu\n",
                   gSpeechActive ? "start" : "stop",
