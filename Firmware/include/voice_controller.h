@@ -4,9 +4,9 @@
 
 namespace OmiPetVoice {
 
-//  唤醒词名称和中文音译 / Wake word name and Chinese pronunciation
-constexpr char kWakeWordPhrase[] = "Hey Omi";
-constexpr char kWakeWordPronunciation[] = "嘿！欧咪";
+//  产品目标唤醒词，生效需取得相应的定制模型 / Product target wake word; activation requires its matching custom model
+constexpr char kWakeWordPhrase[] = "嗨，老鼠";
+constexpr char kWakeWordPronunciation[] = "hāi, lǎo shǔ";
 
 //  唤醒确认音配置 / Wake acknowledgement tone configuration
 constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2600;
@@ -17,11 +17,13 @@ constexpr uint32_t kWakeAcknowledgementSilenceDurationMs = 20;
 constexpr uint32_t kPostAcknowledgementSpeechSuppressionMs = 200;
 constexpr uint32_t kCommandListenTimeoutMs = 5000;
 
+//  唤醒后的语音交互状态 / Post-wake voice interaction states
 enum class VoiceState : uint8_t {
   Idle,
   ListeningForCommand,
 };
 
+//  非阻塞确认音播放阶段 / Non-blocking acknowledgement playback phases
 enum class AcknowledgementPhase : uint8_t {
   None,
   LowTone,
@@ -57,7 +59,9 @@ class VoiceController {
   bool speechInputSuppressed() const;
 
  private:
+  //  推进低音、静音间隔和高音播放 / Advance low tone, silence gap, and high tone playback
   void updateAcknowledgement(uint32_t nowMs);
+  //  停止确认音并复位监听状态 / Stop acknowledgement and reset listening state
   void enterIdle();
 
   VoiceState state_ = VoiceState::Idle;

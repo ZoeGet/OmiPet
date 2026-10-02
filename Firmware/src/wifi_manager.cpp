@@ -1,7 +1,10 @@
 #include "wifi_manager.h"
 
+//  Wi-Fi 配网、重连和热点管理实现 / Wi-Fi provisioning, reconnection, and portal management implementation
+
 namespace OmiPetNetwork {
 
+//  初始化 Wi-Fi 状态和配网服务 / Initialize Wi-Fi state and provisioning service
 bool WifiManagerService::begin() {
   //  显式使用 STA 模式，避免正常联网时保持 AP+STA / Explicitly use STA mode instead of keeping AP+STA during normal operation
   WiFi.mode(WIFI_STA);
@@ -24,6 +27,7 @@ bool WifiManagerService::begin() {
   return connected();
 }
 
+//  驱动连接重试和配网状态机 / Advance connection retries and the provisioning state machine
 void WifiManagerService::update() {
   if (!initialized_) {
     return;

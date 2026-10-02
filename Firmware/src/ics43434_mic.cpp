@@ -1,5 +1,6 @@
 #include "ics43434_mic.h"
 
+//  ICS-43434 I2S 数字麦克风驱动实现 / ICS-43434 I2S digital microphone driver implementation
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -67,6 +68,7 @@ void Ics43434Mic::end() {
   initialized_ = false;
 }
 
+//  查询 I2S 接收是否已经初始化 / Check whether I2S reception is initialized
 bool Ics43434Mic::initialized() const {
   return initialized_;
 }

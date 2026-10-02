@@ -1,5 +1,7 @@
 #include "omi_pet_ui.h"
 
+//  OmiPet 屏幕界面绘制实现 / OmiPet screen user-interface rendering implementation
+
 #include <Arduino.h>
 
 #include <cstring>
@@ -86,6 +88,7 @@ bool gNetworkProvisioning = false;
 const char* gVoiceStatus = "IDLE";
 uint16_t gGlyphBitmap[15 * 21] = {};
 
+//  查找内置字模 / Find a glyph in the built-in font
 const Glyph* findGlyph(char character) {
   if (character >= 'a' && character <= 'z') {
     character = static_cast<char>(character - ('a' - 'A'));
@@ -106,6 +109,7 @@ int16_t textWidth(const char* text, uint8_t scale) {
   return static_cast<int16_t>((length * 6U - 1U) * scale);
 }
 
+//  绘制左对齐文本 / Draw left-aligned text
 void drawText(int16_t x, int16_t y, const char* text, uint8_t scale,
               uint16_t color) {
   const uint16_t glyphWidth = static_cast<uint16_t>(5U * scale);
@@ -197,7 +201,7 @@ void drawPetEyes(bool blink) {
 }
 
 void drawClock(uint32_t seconds) {
-  char clockText[6] = {};
+  char clockText[12] = {};
   const uint32_t hours = seconds / 3600U;
   const uint32_t minutes = (seconds / 60U) % 60U;
   std::snprintf(clockText, sizeof(clockText), "%02lu:%02lu",
@@ -267,6 +271,7 @@ void drawVoiceStatus() {
   OmiPetDisplay::lcd.fillRect(0, 382, kScreenWidth, 18, kBackground);
   drawCenteredText(383, gVoiceStatus, 1, kYellow);
 }
+//  绘制不随时间变化的界面元素 / Draw static user-interface elements
 void drawStaticUi() {
   OmiPetDisplay::lcd.fillScreen(kBackground);
   drawCenteredText(10, "OMIPET", 2, kAccent);
@@ -282,6 +287,7 @@ void drawStaticUi() {
 
 }  //  匿名命名空间 / Anonymous namespace
 
+//  初始化屏幕界面和时钟基准 / Initialize the screen UI and clock base
 void begin() {
   gClockStartMillis = millis();
   gClockBaseSeconds = compileTimeSeconds();
@@ -323,6 +329,7 @@ void setVoiceStatus(const char* statusText) {
     drawVoiceStatus();
   }
 }
+//  按需刷新动态界面 / Refresh dynamic interface elements when needed
 void update() {
   const uint32_t seconds = currentClockSeconds();
   if (seconds == gLastRenderedSecond) {

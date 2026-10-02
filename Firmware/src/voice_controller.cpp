@@ -3,6 +3,7 @@
 #include "buzzer.h"
 #include "omi_pet_ui.h"
 
+//  唤醒确认音和指令监听状态机实现 / Wake acknowledgement and command-listening state machine implementation
 namespace OmiPetVoice {
 
 bool VoiceController::begin() {
@@ -16,6 +17,7 @@ bool VoiceController::begin() {
   return true;
 }
 
+//  按当前状态推进语音交互流程 / Advance the voice interaction flow by state
 void VoiceController::update(bool speechActive) {
   if (!initialized_) {
     return;
@@ -39,6 +41,7 @@ void VoiceController::update(bool speechActive) {
   }
 }
 
+//  接收一次唤醒词事件并开始确认音 / Accept a wake event and start acknowledgement
 bool VoiceController::notifyWakeWordDetected() {
   if (!initialized_ || state_ != VoiceState::Idle) {
     return false;
@@ -59,6 +62,7 @@ bool VoiceController::notifyWakeWordDetected() {
   return true;
 }
 
+//  标记当前指令采集已经完成 / Mark the current command capture as complete
 bool VoiceController::notifyCommandCompleted() {
   if (!initialized_ || state_ != VoiceState::ListeningForCommand) {
     return false;
@@ -69,6 +73,7 @@ bool VoiceController::notifyCommandCompleted() {
   return true;
 }
 
+//  取消当前语音交互并回到待机 / Cancel the current voice interaction and return to idle
 void VoiceController::cancel() {
   if (!initialized_ || state_ == VoiceState::Idle) {
     return;

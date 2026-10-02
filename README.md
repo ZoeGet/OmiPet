@@ -14,16 +14,17 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 - 无源蜂鸣器驱动。
 - Wi-Fi 异步连接和手机网页配网门户。
 - ICS-43434 原始 I²S 采集、RMS 音量分析、自适应语音活动检测和 16-bit PCM 音频帧适配。
+- ESP-SR v1.2.0 WakeNet `Hi ESP` 首阶段接入骨架和独立模型分区。
 
-下一阶段将继续接入唤醒词 `Hey Omi`、离线指令解析和设备动作控制；当前 WakeNet 模型尚未打包进固件。
+当前先使用公开的 `Hi ESP` 模型验证完整离线唤醒链路；产品目标唤醒词为“嗨，老鼠”，仍需要对应的定制 WakeNet 模型，不能用 `Hi ESP` 冒充最终唤醒词。
 
-> **English** — The current firmware includes the display, environmental sensor, LED strip, passive buzzer, Wi-Fi provisioning, and verified ICS-43434 I²S capture with level-based speech activity detection. Wake-word detection and offline command handling are planned next.
+> **English** — The current firmware includes the display, environmental sensor, LED strip, passive buzzer, Wi-Fi provisioning, verified ICS-43434 I²S capture, and an ESP-SR v1.2.0 WakeNet integration path using the separate model partition. The first validation model is `Hi ESP`; the product target “嗨，老鼠” still requires a matching custom WakeNet model.
 
 ## 功能概览 / Features
 
 | 模块 / Module | 当前实现 / Current implementation |
 | --- | --- |
-| 主控 / MCU | ESP32-S3-WROOM-1-N16R8，Arduino framework |
+| 主控 / MCU | ESP32-S3-WROOM-1-N16R8，Arduino + ESP-IDF framework |
 | 屏幕 / Display | NV3007，`142 × 428`，4-wire SPI |
 | 环境传感器 / Environment | AHT20，I²C，GPIO38/39 |
 | 灯带 / LED strip | 13 × WS2812B-2020-V6，GPIO47 |
@@ -73,14 +74,14 @@ OmiPetAudio::microphone.begin(
 
 ### 语音唤醒状态 / Voice wake state
 
-当前固件已经准备好 `16 kHz`、`16-bit`、单声道、每帧 `480` 个采样点的唤醒输入，并提供 `IDLE` / `LISTENING` 状态机。真实唤醒词模型接入后，识别 `Hey Omi` 会触发约 `180 ms` 的三段式确认反馈：低音 `1800 Hz/60 ms`、静音 `20 ms`、高音 `2600 Hz/100 ms`。当前仓库尚未包含 WakeNet 模型文件和模型分区，因此普通声音不会被固件误当作唤醒词。
+当前固件已经准备好 `16 kHz`、`16-bit`、单声道、每帧 `512` 个采样点的唤醒输入，并提供 `IDLE` / `LISTENING` 状态机。产品目标唤醒词为“嗨，老鼠”，但当前仓库没有对应的定制 WakeNet 模型；现阶段仍从独立 `model` SPIFFS 分区加载 `wn9_hiesp`，实际验证词仍是 `Hi ESP`，识别后触发约 `180 ms` 的三段式确认反馈：低音 `1800 Hz/60 ms`、静音 `20 ms`、高音 `2600 Hz/100 ms`。
 
-> **English** — The firmware now provides WakeNet-ready `16 kHz`, `16-bit`, mono frames with 480 samples per frame and an `IDLE` / `LISTENING` state machine. Once the real wake-word backend is integrated, `Hey Omi` will trigger a non-blocking acknowledgement of about 180 ms: 1800 Hz for 60 ms, 20 ms of silence, then 2600 Hz for 100 ms. WakeNet model data and its model partition are not included yet, so ordinary speech is not treated as a wake word.
+> **English** — The firmware provides WakeNet-ready `16 kHz`, `16-bit`, mono frames with 512 samples per frame and an `IDLE` / `LISTENING` state machine. The product target wake word is “嗨，老鼠”, but the repository does not yet contain its custom WakeNet model. The current integration loads ESP-SR `wn9_hiesp` from the dedicated `model` SPIFFS partition, so `Hi ESP` remains the validation word until the custom model is delivered.
 
 
-当前已加入 `WakeWordDetector` 后端适配层：PCM 帧会经过统一入口，但默认后端明确为 `none`/`not-configured`，不会将普通 VAD 或声音误判为 `Hey Omi`。
+当前 `WakeWordDetector` 已接入 ESP-SR v1.2.0 的 WakeNet API，并从独立 `model` SPIFFS 分区加载 `wn9_hiesp`。启动日志会显示目标唤醒词与当前实际模型词，避免把目标配置误认为已经完成模型切换。如果模型分区、模型文件或运行时初始化失败，后端会保持 `unavailable`，不会将普通 VAD 或声音误判为唤醒词。
 
-> **English** — The `WakeWordDetector` backend adapter is now in place. PCM frames are routed through a stable interface, while the default backend remains explicitly `none`/`not-configured`; ordinary VAD or speech is never treated as `Hey Omi`.
+> **English** — `WakeWordDetector` now calls the ESP-SR v1.2.0 WakeNet API and loads `wn9_hiesp` from the dedicated `model` SPIFFS partition. Startup logs distinguish the requested product wake word from the active model word. If the partition, model files, or runtime initialization is unavailable, the backend remains `unavailable`; ordinary speech is never treated as a wake word.
 
 确认音播放期间以及结束后的 200 ms 内，VAD 会暂时抑制语音状态更新，但 I²S/PCM 仍持续采集，避免蜂鸣器回采触发语音开始事件。
 
@@ -164,7 +165,7 @@ AHT20 上电初期的读数通常接近环境值。随着 ESP32-S3、LCD 背光�
 - [x] 唤醒后双音反馈状态机 / Post-wake dual-tone feedback state machine
 - [ ] WakeNet/ESP-SR 模型组件和模型分区 / WakeNet/ESP-SR model component and model partition
 - [ ] 更稳健的 VAD / Robust VAD
-- [ ] `Hey Omi` 离线唤醒词 / Offline `Hey Omi` wake word
+- [ ] “嗨，老鼠”定制离线唤醒词 / Custom offline “嗨，老鼠” wake word
 - [ ] 自然语言指令解析 / Natural-language command parsing
 - [ ] 语音驱动的设备动作 / Voice-controlled device actions
 

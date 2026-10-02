@@ -1,5 +1,6 @@
 #include "pcm_audio_frame_buffer.h"
 
+//  固定长度 PCM 音频帧队列实现 / Fixed-size PCM audio frame queue implementation
 #include <algorithm>
 #include <limits>
 
@@ -28,6 +29,7 @@ size_t PcmAudioFrameBuffer::pushInterleavedWords(const int32_t* words,
   return frameCount;
 }
 
+//  从队列取出一帧完整 PCM 数据 / Pop one complete PCM frame from the queue
 bool PcmAudioFrameBuffer::popFrame(int16_t* frame, size_t sampleCount) {
   if (frame == nullptr || sampleCount != kWakeWordFrameSamples ||
       queuedFrameCount_ == 0U) {
@@ -48,6 +50,7 @@ uint32_t PcmAudioFrameBuffer::droppedFrames() const {
   return droppedFrameCount_;
 }
 
+//  将一个采样追加到当前写入帧 / Append one sample to the current write frame
 void PcmAudioFrameBuffer::appendSample(int16_t sample) {
   pendingSamples_[pendingSampleCount_++] = sample;
   if (pendingSampleCount_ < kWakeWordFrameSamples) {
@@ -65,6 +68,7 @@ void PcmAudioFrameBuffer::appendSample(int16_t sample) {
   pendingSampleCount_ = 0;
 }
 
+//  将 I2S 容器样本转换为 WakeNet PCM16 / Convert an I2S container sample to WakeNet PCM16
 int16_t convertI2sSampleToPcm16(int32_t rawSample) {
   const int32_t shiftedSample = rawSample >> 16;
   const int32_t minimumSample =

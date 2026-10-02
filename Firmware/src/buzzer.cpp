@@ -1,5 +1,6 @@
 #include "buzzer.h"
 
+//  无源蜂鸣器的 LEDC 音调驱动实现 / LEDC tone-driver implementation for the passive buzzer
 namespace OmiPetBuzzer {
 namespace {
 
@@ -35,6 +36,7 @@ bool PassiveBuzzer::begin(uint8_t pin, uint8_t channel) {
   return true;
 }
 
+//  启动一个非阻塞音调 / Start one non-blocking tone
 bool PassiveBuzzer::startTone(uint32_t frequencyHz,
                               uint32_t durationMs,
                               uint8_t dutyPercent) {
@@ -61,6 +63,7 @@ bool PassiveBuzzer::startTone(uint32_t frequencyHz,
   return true;
 }
 
+//  停止当前音调并释放引脚复用 / Stop the current tone and release pin multiplexing
 void PassiveBuzzer::stop() {
   if (!initialized_) {
     return;
@@ -75,6 +78,7 @@ void PassiveBuzzer::stop() {
   durationMs_ = 0;
 }
 
+//  更新音调计时并在到期后停止 / Update tone timing and stop when it expires
 void PassiveBuzzer::update() {
   if (!playing_ || durationMs_ == 0U) {
     return;
@@ -84,6 +88,7 @@ void PassiveBuzzer::update() {
   }
 }
 
+//  设置静音状态但保留播放进度 / Set mute state while preserving playback progress
 void PassiveBuzzer::setMute(bool muted) {
   muted_ = muted;
   if (!initialized_ || !playing_) {

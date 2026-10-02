@@ -1,10 +1,12 @@
 #include "led_strip.h"
 
+//  WS2812B 灯带驱动实现 / WS2812B LED strip driver implementation
 namespace OmiPetLed {
 
 Strip::Strip()
     : pixels_(kLedCount, kDataPin, NEO_GRB + NEO_KHZ800) {}
 
+//  初始化 NeoPixel 总线并清空灯带 / Initialize the NeoPixel bus and clear the strip
 void Strip::begin(uint8_t brightness) {
   pixels_.begin();
   setBrightness(brightness);
@@ -12,11 +14,13 @@ void Strip::begin(uint8_t brightness) {
   pixels_.show();
 }
 
+//  清除所有待发送像素 / Clear all pending pixels
 void Strip::clear(bool update) {
   pixels_.clear();
   if (update) pixels_.show();
 }
 
+//  将当前像素缓存发送到灯带 / Send the current pixel buffer to the strip
 void Strip::show() { pixels_.show(); }
 
 void Strip::setBrightness(uint8_t brightness) {
