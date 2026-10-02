@@ -73,9 +73,19 @@ OmiPetAudio::microphone.begin(
 
 ### 语音唤醒状态 / Voice wake state
 
-当前固件已经准备好 `16 kHz`、`16-bit`、单声道、每帧 `480` 个采样点的唤醒输入，并提供 `IDLE` / `LISTENING` 状态机。真实唤醒词模型接入后，识别 `Hey Omi` 会触发约 `205 ms` 的三段式确认反馈：低音 `1800 Hz/70 ms`、静音 `25 ms`、高音 `2600 Hz/110 ms`。当前仓库尚未包含 WakeNet 模型文件和模型分区，因此普通声音不会被固件误当作唤醒词。
+当前固件已经准备好 `16 kHz`、`16-bit`、单声道、每帧 `480` 个采样点的唤醒输入，并提供 `IDLE` / `LISTENING` 状态机。真实唤醒词模型接入后，识别 `Hey Omi` 会触发约 `180 ms` 的三段式确认反馈：低音 `1800 Hz/60 ms`、静音 `20 ms`、高音 `2600 Hz/100 ms`。当前仓库尚未包含 WakeNet 模型文件和模型分区，因此普通声音不会被固件误当作唤醒词。
 
-> **English** — The firmware now provides WakeNet-ready `16 kHz`, `16-bit`, mono frames with 480 samples per frame and an `IDLE` / `LISTENING` state machine. Once the real wake-word backend is integrated, `Hey Omi` will trigger a non-blocking acknowledgement of about 205 ms: 1800 Hz for 70 ms, 25 ms of silence, then 2600 Hz for 110 ms. WakeNet model data and its model partition are not included yet, so ordinary speech is not treated as a wake word.
+> **English** — The firmware now provides WakeNet-ready `16 kHz`, `16-bit`, mono frames with 480 samples per frame and an `IDLE` / `LISTENING` state machine. Once the real wake-word backend is integrated, `Hey Omi` will trigger a non-blocking acknowledgement of about 180 ms: 1800 Hz for 60 ms, 20 ms of silence, then 2600 Hz for 100 ms. WakeNet model data and its model partition are not included yet, so ordinary speech is not treated as a wake word.
+
+
+当前已加入 `WakeWordDetector` 后端适配层：PCM 帧会经过统一入口，但默认后端明确为 `none`/`not-configured`，不会将普通 VAD 或声音误判为 `Hey Omi`。
+
+> **English** — The `WakeWordDetector` backend adapter is now in place. PCM frames are routed through a stable interface, while the default backend remains explicitly `none`/`not-configured`; ordinary VAD or speech is never treated as `Hey Omi`.
+
+确认音播放期间以及结束后的 200 ms 内，VAD 会暂时抑制语音状态更新，但 I²S/PCM 仍持续采集，避免蜂鸣器回采触发语音开始事件。
+
+> **English** — During the acknowledgement tone and for 200 ms afterward, VAD state updates are temporarily suppressed while I²S/PCM capture continues, preventing buzzer feedback from triggering speech-start events.
+
 ## 硬件资料 / Hardware Resources
 
 - [原理图 / Schematic](Hardware/Schematic/Omi_Schematic.pdf)

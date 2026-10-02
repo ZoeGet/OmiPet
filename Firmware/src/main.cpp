@@ -10,6 +10,7 @@
 #include "wifi_manager.h"
 #include "ics43434_mic.h"
 #include "pcm_audio_frame_buffer.h"
+#include "wake_word_detector.h"
 #include "voice_controller.h"
 
 namespace {
@@ -191,6 +192,11 @@ void updateWakeWordAudioFrames() {
   while (gWakeWordAudioBuffer.popFrame(
       gWakeWordPcmFrame, OmiPetAudio::kWakeWordFrameSamples)) {
     ++processedFrameCount;
+    if (OmiPetAudio::wakeWordDetector.processFrame(
+            gWakeWordPcmFrame, OmiPetAudio::kWakeWordFrameSamples)) {
+      Serial.println("[WAKE] wake word detected");
+      OmiPetVoice::voice.notifyWakeWordDetected();
+    }
   }
   gWakeWordFrameCount += static_cast<uint32_t>(processedFrameCount);
 
@@ -277,6 +283,12 @@ void setup() {
                 static_cast<unsigned>(OmiPetAudio::kMicSckPin),
                 static_cast<unsigned>(OmiPetAudio::kMicWsPin),
                 static_cast<unsigned>(OmiPetAudio::kMicSdPin));
+
+  const bool wakeInputReady = OmiPetAudio::wakeWordDetector.begin(
+      OmiPetAudio::kMicDefaultSampleRateHz, OmiPetAudio::kWakeWordFrameSamples);
+  Serial.printf("[WAKE] backend=%s input=%s status=unavailable model=not-configured\n",
+                OmiPetAudio::wakeWordDetector.backendName(),
+                wakeInputReady ? "ok" : "invalid");
 }
 
 void loop() {
