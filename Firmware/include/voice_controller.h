@@ -9,10 +9,11 @@ constexpr char kWakeWordPhrase[] = "Hey Omi";
 constexpr char kWakeWordPronunciation[] = "嘿！欧咪";
 
 //  唤醒确认音配置 / Wake acknowledgement tone configuration
-constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2800;
+constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2600;
 constexpr uint32_t kWakeAcknowledgementLowFrequencyHz = 1800;
-constexpr uint32_t kWakeAcknowledgementHighDurationMs = 150;
-constexpr uint32_t kWakeAcknowledgementLowDurationMs = 150;
+constexpr uint32_t kWakeAcknowledgementHighDurationMs = 110;
+constexpr uint32_t kWakeAcknowledgementLowDurationMs = 70;
+constexpr uint32_t kWakeAcknowledgementSilenceDurationMs = 25;
 constexpr uint32_t kCommandListenTimeoutMs = 5000;
 
 enum class VoiceState : uint8_t {
@@ -22,8 +23,9 @@ enum class VoiceState : uint8_t {
 
 enum class AcknowledgementPhase : uint8_t {
   None,
-  HighTone,
   LowTone,
+  SilenceGap,
+  HighTone,
 };
 
 //  管理唤醒后的语音交互状态 / Manage the voice interaction state after wake-up
