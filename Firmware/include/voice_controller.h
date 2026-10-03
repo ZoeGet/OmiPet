@@ -4,10 +4,6 @@
 
 namespace OmiPetVoice {
 
-//  产品目标唤醒词，生效需取得相应的定制模型 / Product target wake word; activation requires its matching custom model
-constexpr char kWakeWordPhrase[] = "老鼠狒狒";
-constexpr char kWakeWordPronunciation[] = "lǎo shǔ féi féi";
-
 //  唤醒确认音配置 / Wake acknowledgement tone configuration
 constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2600;
 constexpr uint32_t kWakeAcknowledgementLowFrequencyHz = 1800;

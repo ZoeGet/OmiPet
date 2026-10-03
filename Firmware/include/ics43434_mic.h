@@ -18,14 +18,6 @@ enum class MicChannel : uint8_t {
   Right = 1,
 };
 
-struct RawSampleStats {
-  int32_t minimum = 0;
-  int32_t maximum = 0;
-  uint64_t absoluteSum = 0;
-  uint32_t nonZeroCount = 0;
-  size_t sampleCount = 0;
-};
-
 //  ICS-43434 I2S 采集薄封装 / Thin ICS-43434 I2S capture wrapper
 class Ics43434Mic {
  public:
@@ -41,14 +33,8 @@ class Ics43434Mic {
   //  检查采集外设是否已初始化 / Check whether the capture peripheral is initialized
   bool initialized() const;
 
-  //  返回已缓冲的 32-bit 原始数据字数 / Return buffered raw 32-bit words
-  size_t availableRawWords();
-
   //  读取交错排列的左右声道原始槽数据 / Read interleaved raw left/right slot words
   size_t readRawWords(int32_t* buffer, size_t wordCount);
-
-  //  只读取配置声道的数据 / Read only the configured slot from interleaved stereo frames
-  size_t readSelectedFrames(int32_t* buffer, size_t frameCount);
 
   //  获取当前选择的麦克风声道槽 / Get the selected microphone slot
   MicChannel channel() const;
@@ -62,9 +48,6 @@ class Ics43434Mic {
   bool initialized_ = false;
   i2s_port_t port_ = I2S_NUM_0;
 };
-
-//  在不假设位对齐方式的前提下分析原始样本 / Analyze raw samples without assuming their bit alignment
-RawSampleStats analyzeRawSamples(const int32_t* samples, size_t sampleCount);
 
 extern Ics43434Mic microphone;
 

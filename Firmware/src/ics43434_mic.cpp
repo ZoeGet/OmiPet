@@ -2,8 +2,6 @@
 
 //  ICS-43434 I2S 数字麦克风驱动实现 / ICS-43434 I2S digital microphone driver implementation
 #include <algorithm>
-#include <cstdint>
-#include <limits>
 
 namespace OmiPetAudio {
 
@@ -68,17 +66,8 @@ void Ics43434Mic::end() {
   initialized_ = false;
 }
 
-//  查询 I2S 接收是否已经初始化 / Check whether I2S reception is initialized
 bool Ics43434Mic::initialized() const {
   return initialized_;
-}
-
-size_t Ics43434Mic::availableRawWords() {
-  if (!initialized_) {
-    return 0;
-  }
-
-  return 0;
 }
 
 size_t Ics43434Mic::readRawWords(int32_t* buffer, size_t wordCount) {
@@ -97,58 +86,12 @@ size_t Ics43434Mic::readRawWords(int32_t* buffer, size_t wordCount) {
   return std::min(bytesRead / sizeof(int32_t), wordCount);
 }
 
-size_t Ics43434Mic::readSelectedFrames(int32_t* buffer, size_t frameCount) {
-  if (!initialized_ || buffer == nullptr || frameCount == 0U) {
-    return 0;
-  }
-
-  size_t framesRead = 0;
-  int32_t stereoFrame[2] = {};
-  const size_t selectedSlot = static_cast<size_t>(channel_);
-  while (framesRead < frameCount) {
-    if (readRawWords(stereoFrame, 2U) != 2U) {
-      break;
-    }
-    buffer[framesRead++] = stereoFrame[selectedSlot];
-  }
-
-  return framesRead;
-}
-
 MicChannel Ics43434Mic::channel() const {
   return channel_;
 }
 
 uint32_t Ics43434Mic::sampleRateHz() const {
   return sampleRateHz_;
-}
-
-RawSampleStats analyzeRawSamples(const int32_t* samples, size_t sampleCount) {
-  RawSampleStats stats;
-  if (samples == nullptr || sampleCount == 0U) {
-    return stats;
-  }
-
-  stats.minimum = std::numeric_limits<int32_t>::max();
-  stats.maximum = std::numeric_limits<int32_t>::min();
-  stats.sampleCount = sampleCount;
-
-  for (size_t index = 0; index < sampleCount; ++index) {
-    const int32_t sample = samples[index];
-    stats.minimum = std::min(stats.minimum, sample);
-    stats.maximum = std::max(stats.maximum, sample);
-    if (sample != 0) {
-      ++stats.nonZeroCount;
-    }
-
-    const int64_t signedSample = sample;
-    const uint64_t magnitude = signedSample < 0
-                                   ? static_cast<uint64_t>(-signedSample)
-                                   : static_cast<uint64_t>(signedSample);
-    stats.absoluteSum += magnitude;
-  }
-
-  return stats;
 }
 
 Ics43434Mic microphone;
