@@ -17,6 +17,7 @@
 
 namespace {
 
+//  麦克风诊断窗口和周期参数 / Microphone diagnostic window and periodic timing parameters
 constexpr size_t kMicDiagnosticFrameCount = 160;
 constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;
 constexpr uint32_t kMicWindowIntervalMs = 10;
@@ -29,6 +30,8 @@ constexpr uint32_t kMinimumSpeechStartRms = 10000;
 constexpr uint32_t kMinimumSpeechHoldRms = 5000;
 constexpr uint8_t kSpeechStartWindowCount = 3;
 constexpr uint8_t kSpeechEndWindowCount = 8;
+
+//  麦克风采样、噪声底和 VAD 状态 / Microphone samples, noise floor, and VAD state
 int32_t gMicDiagnosticWords[kMicDiagnosticWordCount] = {};
 uint32_t gLastMicWindowMs = 0;
 uint32_t gLastMicLogMs = 0;
@@ -51,6 +54,8 @@ struct MicLevelStats {
 };
 
 MicLevelStats gLastMicStats;
+
+//  命令音频队列和识别时间戳 / Command audio queue and recognition timestamps
 OmiPetAudio::PcmAudioFrameBuffer gCommandAudioBuffer;
 int16_t gCommandPcmFrame[OmiPetAudio::kPcmAudioFrameSamples] = {};
 uint32_t gCommandFrameCount = 0;
