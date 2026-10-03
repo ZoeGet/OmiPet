@@ -1,3 +1,4 @@
+import csv
 from pathlib import Path
 import shutil
 import subprocess
@@ -16,6 +17,16 @@ default_config = project_dir / "sdkconfig.defaults"
 compatibility_config = project_dir / "sdkconfig"
 model_root = project_dir / "target"
 model_bin = build_dir / "model.bin"
+custom_command_file = project_dir / "scripts" / "multinet_commands_cn.txt"
+partition_file = project_dir / "partitions.csv"
+with partition_file.open(newline="", encoding="utf-8") as partition_stream:
+    partition_rows = [
+        row for row in csv.reader(partition_stream)
+        if row and not row[0].strip().startswith("#")
+    ]
+model_partition = next(row for row in partition_rows if row[0].strip() == "model")
+model_offset = int(model_partition[3].strip(), 0)
+model_size = int(model_partition[4].strip(), 0)
 
 config_source = generated_config if generated_config.exists() else default_config
 shutil.copyfile(config_source, compatibility_config)
@@ -25,11 +36,12 @@ subprocess.run(
     [sys.executable, str(model_script), "-d1", str(project_dir), "-d2", str(project_dir / "components" / "esp-sr")],
     check=True,
 )
+shutil.copyfile(custom_command_file, model_root / "fst" / "commands_cn.txt")
 subprocess.run(
     [
         sys.executable,
         str(spiffsgen_script),
-        "0x140000",
+        hex(model_size),
         str(model_root),
         str(model_bin),
         "--page-size=256",
@@ -45,6 +57,6 @@ print(f"[MODEL] generated {model_bin} ({model_bin.stat().st_size} bytes)")
 #  将模型镜像加入 PlatformIO 烧录列表 / Add the model image to the PlatformIO flash image list
 env.Append(
     FLASH_EXTRA_IMAGES=[
-        ("0xc10000", str(model_bin)),
+        (hex(model_offset), str(model_bin)),
     ]
 )
