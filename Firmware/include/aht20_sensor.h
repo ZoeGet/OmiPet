@@ -44,8 +44,8 @@ struct Aht20Measurement {
 class Aht20Sensor {
  public:
   //  初始化 I2C、检测器件并确认校准状态 / Initialize I2C, probe the device, and verify calibration
-  bool begin(TwoWire& wire = Wire, uint8_t sda = kAht20SdaPin,
-             uint8_t scl = kAht20SclPin, uint32_t frequency = 100000UL);
+  bool begin(TwoWire& wire = Wire, uint8_t sda = kAht20SdaPin,  //  I2C 总线对象和 SDA 引脚 / I2C bus object and SDA pin
+             uint8_t scl = kAht20SclPin, uint32_t frequency = 100000UL);  //  SCL 引脚和总线频率 / SCL pin and bus frequency
 
   //  触发并读取一次测量 / Trigger and read one measurement
   bool readMeasurement();

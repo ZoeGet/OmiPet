@@ -24,12 +24,12 @@ enum class BuzzerError : uint8_t {
 class PassiveBuzzer {
  public:
   //  初始化 GPIO 和 LEDC，初始化后保持静音 / Initialize GPIO and LEDC, remaining silent after initialization
-  bool begin(uint8_t pin = kBuzzerPin, uint8_t channel = kBuzzerPwmChannel);
+  bool begin(uint8_t pin = kBuzzerPin, uint8_t channel = kBuzzerPwmChannel);  //  蜂鸣器 GPIO 和 LEDC 通道 / Buzzer GPIO and LEDC channel
 
   //  启动指定频率和时长的非阻塞提示音，时长为 0 表示持续播放 / Start a non-blocking tone; duration 0 means continuous playback
   bool startTone(uint32_t frequencyHz,
                  uint32_t durationMs,
-                 uint8_t dutyPercent = kBuzzerDefaultDutyPercent);
+                 uint8_t dutyPercent = kBuzzerDefaultDutyPercent);  //  音调频率、时长和占空比 / Tone frequency, duration, and duty cycle
 
   //  停止输出并将 GPIO 拉低 / Stop output and drive the GPIO low
   void stop();
