@@ -6,13 +6,13 @@
 namespace OmiPetSensor {
 
 //  AHT20 默认 I2C 地址和项目硬件引脚 / AHT20 default I2C address and project hardware pins
-constexpr uint8_t kAht20Address = 0x38;
-constexpr uint8_t kAht20SdaPin = 39;
-constexpr uint8_t kAht20SclPin = 38;
+constexpr uint8_t kAht20Address = 0x38;  //  AHT20 的 7-bit I2C 地址 / AHT20 7-bit I2C address
+constexpr uint8_t kAht20SdaPin = 39;  //  AHT20 I2C SDA 引脚 / AHT20 I2C SDA pin
+constexpr uint8_t kAht20SclPin = 38;  //  AHT20 I2C SCL 引脚 / AHT20 I2C SCL pin
 
 //  根据当前整机实测结果设置的现场补偿值，不是 AHT20 手册参数 / Field calibration offsets based on the current assembled device, not AHT20 datasheet values
-constexpr float kTemperatureCalibrationOffsetC = -4.0F;
-constexpr float kHumidityCalibrationOffsetPercent = 9.0F;
+constexpr float kTemperatureCalibrationOffsetC = -4.0F;  //  温度现场补偿值，单位摄氏度 / Field temperature calibration offset in degrees Celsius
+constexpr float kHumidityCalibrationOffsetPercent = 9.0F;  //  湿度现场补偿值，单位百分比 / Field humidity calibration offset in percent
 
 //  AHT20 驱动错误类型 / AHT20 driver error types
 enum class Aht20Error : uint8_t {

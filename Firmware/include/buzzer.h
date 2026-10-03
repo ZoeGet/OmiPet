@@ -5,11 +5,11 @@
 namespace OmiPetBuzzer {
 
 //  无源蜂鸣器硬件配置 / Passive buzzer hardware configuration
-constexpr uint8_t kBuzzerPin = 4;
-constexpr uint8_t kBuzzerPwmChannel = 0;
-constexpr uint8_t kBuzzerPwmResolutionBits = 10;
-constexpr uint32_t kBuzzerDefaultFrequencyHz = 2500;
-constexpr uint8_t kBuzzerDefaultDutyPercent = 50;
+constexpr uint8_t kBuzzerPin = 4;  //  无源蜂鸣器 GPIO 引脚 / Passive buzzer GPIO pin
+constexpr uint8_t kBuzzerPwmChannel = 0;  //  蜂鸣器使用的 LEDC PWM 通道 / LEDC PWM channel used by the buzzer
+constexpr uint8_t kBuzzerPwmResolutionBits = 10;  //  蜂鸣器 PWM 分辨率位数 / Buzzer PWM resolution in bits
+constexpr uint32_t kBuzzerDefaultFrequencyHz = 2500;  //  蜂鸣器默认频率 / Buzzer default frequency
+constexpr uint8_t kBuzzerDefaultDutyPercent = 50;  //  蜂鸣器默认占空比百分比 / Buzzer default duty-cycle percentage
 
 //  蜂鸣器驱动错误类型 / Buzzer driver error types
 enum class BuzzerError : uint8_t {

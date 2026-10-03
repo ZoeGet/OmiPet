@@ -5,13 +5,13 @@
 namespace OmiPetVoice {
 
 //  唤醒确认音配置 / Wake acknowledgement tone configuration
-constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2600;
-constexpr uint32_t kWakeAcknowledgementLowFrequencyHz = 1800;
-constexpr uint32_t kWakeAcknowledgementHighDurationMs = 100;
-constexpr uint32_t kWakeAcknowledgementLowDurationMs = 60;
-constexpr uint32_t kWakeAcknowledgementSilenceDurationMs = 20;
-constexpr uint32_t kPostAcknowledgementSpeechSuppressionMs = 200;
-constexpr uint32_t kCommandListenTimeoutMs = 5000;
+constexpr uint32_t kWakeAcknowledgementHighFrequencyHz = 2600;  //  唤醒确认音高音频率 / Wake acknowledgement high-tone frequency
+constexpr uint32_t kWakeAcknowledgementLowFrequencyHz = 1800;  //  唤醒确认音低音频率 / Wake acknowledgement low-tone frequency
+constexpr uint32_t kWakeAcknowledgementHighDurationMs = 100;  //  唤醒确认音高音持续时间 / Wake acknowledgement high-tone duration
+constexpr uint32_t kWakeAcknowledgementLowDurationMs = 60;  //  唤醒确认音低音持续时间 / Wake acknowledgement low-tone duration
+constexpr uint32_t kWakeAcknowledgementSilenceDurationMs = 20;  //  唤醒确认音高低音之间的静音间隔 / Silence gap between acknowledgement tones
+constexpr uint32_t kPostAcknowledgementSpeechSuppressionMs = 200;  //  确认音结束后的语音抑制时间 / Speech suppression after acknowledgement
+constexpr uint32_t kCommandListenTimeoutMs = 5000;  //  唤醒后等待亮度指令的超时时间 / Timeout for a brightness command after wake-up
 
 //  唤醒后的语音交互状态 / Post-wake voice interaction states
 enum class VoiceState : uint8_t {

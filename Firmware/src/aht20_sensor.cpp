@@ -4,21 +4,21 @@ namespace OmiPetSensor {
 namespace {
 
 //  AHT20 状态位和时序参数 / AHT20 status bits and timing parameters
-constexpr uint8_t kStatusBusyMask = 0x80;
-constexpr uint8_t kStatusCalibrationMask = 0x08;
-constexpr uint32_t kPowerUpDelayMs = 100;
-constexpr uint32_t kCalibrationDelayMs = 10;
-constexpr uint32_t kMeasurementStartDelayMs = 10;
-constexpr uint32_t kMeasurementConversionDelayMs = 80;
-constexpr uint32_t kMeasurementTimeoutMs = 120;
-constexpr uint32_t kMeasurementPollIntervalMs = 5;
-constexpr uint32_t kRecoveryFailureThreshold = 3;
-constexpr uint32_t kRecoveryIntervalMs = 5000;
+constexpr uint8_t kStatusBusyMask = 0x80;  //  AHT20 状态字节 Busy 位掩码 / AHT20 status-byte busy-bit mask
+constexpr uint8_t kStatusCalibrationMask = 0x08;  //  AHT20 状态字节校准使能位掩码 / AHT20 status-byte calibration-bit mask
+constexpr uint32_t kPowerUpDelayMs = 100;  //  上电后等待传感器稳定的时间 / Sensor stabilization delay after power-up
+constexpr uint32_t kCalibrationDelayMs = 10;  //  发送校准命令后的等待时间 / Delay after sending the calibration command
+constexpr uint32_t kMeasurementStartDelayMs = 10;  //  发起测量后开始轮询前的等待时间 / Delay before polling after starting a measurement
+constexpr uint32_t kMeasurementConversionDelayMs = 80;  //  测量转换的参考等待时间 / Reference measurement-conversion delay
+constexpr uint32_t kMeasurementTimeoutMs = 120;  //  等待 AHT20 空闲的最大时间 / Maximum time to wait for AHT20 readiness
+constexpr uint32_t kMeasurementPollIntervalMs = 5;  //  轮询 AHT20 Busy 位的间隔 / AHT20 busy-bit polling interval
+constexpr uint32_t kRecoveryFailureThreshold = 3;  //  连续失败后触发软复位的次数阈值 / Consecutive-failure threshold for soft recovery
+constexpr uint32_t kRecoveryIntervalMs = 5000;  //  两次自动恢复之间的最小间隔 / Minimum interval between automatic recoveries
 
 //  AHT20 初始化、测量和软复位命令 / AHT20 initialization, measurement, and soft-reset commands
-constexpr uint8_t kInitializeCommand[] = {0xBE, 0x08, 0x00};
-constexpr uint8_t kMeasureCommand[] = {0xAC, 0x33, 0x00};
-constexpr uint8_t kSoftResetCommand[] = {0xBA};
+constexpr uint8_t kInitializeCommand[] = {0xBE, 0x08, 0x00};  //  AHT20 初始化校准命令帧 / AHT20 calibration-initialization command frame
+constexpr uint8_t kMeasureCommand[] = {0xAC, 0x33, 0x00};  //  AHT20 触发测量命令帧 / AHT20 measurement-trigger command frame
+constexpr uint8_t kSoftResetCommand[] = {0xBA};  //  AHT20 软复位命令帧 / AHT20 soft-reset command frame
 
 }  //  匿名命名空间 / Anonymous namespace
 

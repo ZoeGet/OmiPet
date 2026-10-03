@@ -19,52 +19,52 @@ namespace {
 
 //  音频链路为 I2S、PCM 队列、AFE、VAD 和 MultiNet 的串联流程 / The audio path chains I2S, PCM queue, AFE, VAD, and MultiNet
 //  麦克风诊断窗口和周期参数 / Microphone diagnostic window and periodic timing parameters
-constexpr size_t kMicDiagnosticFrameCount = 160;
-constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;
-constexpr uint32_t kMicWindowIntervalMs = 10;
-constexpr uint32_t kMicLogIntervalMs = 1000;
+constexpr size_t kMicDiagnosticFrameCount = 160;  //  每个麦克风诊断窗口的采样帧数 / Audio frames per microphone diagnostic window
+constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;  //  双声道原始槽的样本字数量 / Raw sample words for both channel slots
+constexpr uint32_t kMicWindowIntervalMs = 10;  //  麦克风诊断窗口处理间隔 / Microphone diagnostic-window interval
+constexpr uint32_t kMicLogIntervalMs = 1000;  //  麦克风诊断日志输出间隔 / Microphone diagnostic log interval
 //  语音结束后保留一段 MultiNet 检测尾窗，避免漏掉词尾 / Keep a MultiNet detection hangover after speech to avoid missing phrase endings
-constexpr uint32_t kSpeechDetectionHangoverMs = 1200;
+constexpr uint32_t kSpeechDetectionHangoverMs = 1200;  //  语音结束后继续允许 MultiNet 检测的尾窗时间 / MultiNet detection hangover after speech ends
 //  限制单次主循环处理的音频帧数，避免识别任务长期占满 CPU / Limit frames processed per loop so recognition cannot monopolize the CPU
-constexpr size_t kMaxCommandFramesPerLoop = 4;
-constexpr uint32_t kMinimumSpeechStartRms = 10000;
-constexpr uint32_t kMinimumSpeechHoldRms = 5000;
-constexpr uint8_t kSpeechStartWindowCount = 3;
-constexpr uint8_t kSpeechEndWindowCount = 8;
+constexpr size_t kMaxCommandFramesPerLoop = 4;  //  单次主循环最多处理的命令音频帧数 / Maximum command audio frames processed per loop
+constexpr uint32_t kMinimumSpeechStartRms = 10000;  //  从静音进入语音状态的最小 RMS / Minimum RMS to start speech state
+constexpr uint32_t kMinimumSpeechHoldRms = 5000;  //  保持语音状态的最小 RMS / Minimum RMS to hold speech state
+constexpr uint8_t kSpeechStartWindowCount = 3;  //  连续语音窗口达到此数后进入语音状态 / Speech windows required to enter speech state
+constexpr uint8_t kSpeechEndWindowCount = 8;  //  连续安静窗口达到此数后退出语音状态 / Quiet windows required to leave speech state
 
 //  麦克风采样、噪声底和 VAD 状态 / Microphone samples, noise floor, and VAD state
-int32_t gMicDiagnosticWords[kMicDiagnosticWordCount] = {};
-uint32_t gLastMicWindowMs = 0;
-uint32_t gLastMicLogMs = 0;
-uint32_t gLastSystemHeartbeatMs = 0;
-uint32_t gMicNoiseFloorRms = 0;
-bool gMicNoiseFloorInitialized = false;
-uint8_t gSpeechStartWindows = 0;
-uint8_t gSpeechQuietWindows = 0;
-bool gSpeechActive = false;
+int32_t gMicDiagnosticWords[kMicDiagnosticWordCount] = {};  //  麦克风双声道原始样本窗口 / Raw stereo microphone sample window
+uint32_t gLastMicWindowMs = 0;  //  上一次麦克风窗口处理时间 / Last microphone-window processing time
+uint32_t gLastMicLogMs = 0;  //  上一次麦克风日志时间 / Last microphone diagnostic log time
+uint32_t gLastSystemHeartbeatMs = 0;  //  上一次系统心跳时间 / Last system heartbeat time
+uint32_t gMicNoiseFloorRms = 0;  //  自适应噪声底 RMS / Adaptive microphone noise-floor RMS
+bool gMicNoiseFloorInitialized = false;  //  是否已经初始化噪声底 / Whether the noise floor is initialized
+uint8_t gSpeechStartWindows = 0;  //  连续语音候选窗口计数 / Consecutive speech-candidate window count
+uint8_t gSpeechQuietWindows = 0;  //  连续安静窗口计数 / Consecutive quiet-window count
+bool gSpeechActive = false;  //  当前是否处于语音活动状态 / Whether speech is currently active
 //  记录最近一次 VAD 语音活动，用于维持检测尾窗 / Track the latest VAD activity to maintain the detection hangover
-uint32_t gLastSpeechActivityMs = 0;
-uint32_t gLastMicThreshold = 0;
-bool gLastSpeechCandidate = false;
+uint32_t gLastSpeechActivityMs = 0;  //  最近一次语音活动时间 / Most recent speech-activity time
+uint32_t gLastMicThreshold = 0;  //  最近一次动态语音判定阈值 / Most recent adaptive speech threshold
+bool gLastSpeechCandidate = false;  //  最近一次窗口是否为语音候选 / Whether the latest window was a speech candidate
 
 struct MicLevelStats {
-  uint32_t averageAbsolute = 0;
-  uint32_t rms = 0;
-  uint32_t peak = 0;
-  size_t frameCount = 0;
+  uint32_t averageAbsolute = 0;  //  窗口平均绝对振幅 / Window average absolute amplitude
+  uint32_t rms = 0;  //  窗口均方根音量 / Window root-mean-square level
+  uint32_t peak = 0;  //  窗口峰值振幅 / Window peak amplitude
+  size_t frameCount = 0;  //  已统计的采样帧数 / Number of sampled frames included
 };
 
 MicLevelStats gLastMicStats;
 
 //  命令音频队列和识别时间戳 / Command audio queue and recognition timestamps
-OmiPetAudio::PcmAudioFrameBuffer gCommandAudioBuffer;
-int16_t gCommandPcmFrame[OmiPetAudio::kPcmAudioFrameSamples] = {};
-uint32_t gCommandFrameCount = 0;
-uint32_t gLastAudioFrameLogMs = 0;
-uint32_t gSpeechStartAtMs = 0;
-uint32_t gSpeechStopAtMs = 0;
-uint32_t gWakeAcceptedAtMs = 0;
-bool gSpeechTimingValid = false;
+OmiPetAudio::PcmAudioFrameBuffer gCommandAudioBuffer;  //  送入 AFE/MultiNet 的 PCM 帧队列 / PCM frame queue feeding AFE/MultiNet
+int16_t gCommandPcmFrame[OmiPetAudio::kPcmAudioFrameSamples] = {};  //  当前待处理的 PCM 帧 / Current PCM frame being processed
+uint32_t gCommandFrameCount = 0;  //  已处理的命令 PCM 帧数量 / Number of processed command PCM frames
+uint32_t gLastAudioFrameLogMs = 0;  //  上一次音频帧日志时间 / Last audio-frame log time
+uint32_t gSpeechStartAtMs = 0;  //  当前语音片段开始时间 / Start time of the current speech segment
+uint32_t gSpeechStopAtMs = 0;  //  当前语音片段结束时间 / End time of the current speech segment
+uint32_t gWakeAcceptedAtMs = 0;  //  最近一次唤醒被状态机接受的时间 / Time when the latest wake was accepted
+bool gSpeechTimingValid = false;  //  当前语音时间戳是否有效 / Whether current speech timestamps are valid
 
 //  计算选定声道的音量统计 / Calculate level statistics for the selected channel
 MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
