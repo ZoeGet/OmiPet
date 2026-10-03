@@ -7,10 +7,10 @@
 
 namespace OmiPetAudio {
 
-//  连续识别实验使用的命令 ID / Command IDs used by the continuous recognition experiment
-constexpr int kIncreaseBrightnessCommandId = 1;
-constexpr int kDecreaseBrightnessCommandId = 2;
-constexpr int kWakePhraseCommandId = 3;
+//  命令 ID 是稳定的业务接口；词表中的 ID=1 行是唯一唤醒词配置入口 / Command IDs are stable business interfaces; the ID=1 row in the phrase file is the single wake-phrase configuration entry
+constexpr int kWakePhraseCommandId = 1;
+constexpr int kIncreaseBrightnessCommandId = 2;
+constexpr int kDecreaseBrightnessCommandId = 3;
 
 class MultiNetCommandRecognizer {
  public:

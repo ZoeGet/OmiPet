@@ -254,7 +254,7 @@ void updateCommandAudioFrames() {
         gCommandPcmFrame, OmiPetAudio::kPcmAudioFrameSamples,
         allowDetection);
     const uint32_t detectFinishedAtMs = millis();
-    //  自定义词 ID=3 作为待机入口，识别后清空上一段模型上下文 / Use custom phrase ID 3 as the idle entry and clear the previous model context
+    //  自定义词 ID=1 作为待机入口，识别后清空上一段模型上下文 / Use custom phrase ID 1 as the idle entry and clear the previous model context
     if (commandId == OmiPetAudio::kWakePhraseCommandId &&
         OmiPetVoice::voice.state() == OmiPetVoice::VoiceState::Idle) {
       const uint32_t speechAgeMs =

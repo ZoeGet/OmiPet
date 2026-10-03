@@ -91,6 +91,7 @@ tmp/
 Firmware/managed_components/
 Firmware/sdkconfig
 Firmware/target/
+Firmware/include/generated_multinet_commands.h
 
 # ESP-IDF generated machine-specific configuration
 Firmware/sdkconfig.*

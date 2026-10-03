@@ -74,11 +74,11 @@ OmiPetAudio::microphone.begin(
 
 ### 语音交互状态 / Voice interaction state
 
-当前固件使用 `16 kHz`、`16-bit`、单声道 PCM，将每次 `160` 个采样点的输入帧送入 AFE；AFE 以约 `512` 个采样点的输出帧驱动中文 MultiNet `mn6_cn`。词表包含亮度控制短语和自定义入口“老鼠狒狒”（命令 ID `3`）。识别到入口后，状态机播放约 `180 ms` 的三段式确认反馈，并进入 `LISTENING` 等待“亮一点/暗一点”等自然语言指令。
+当前固件使用 `16 kHz`、`16-bit`、单声道 PCM，将每次 `160` 个采样点的输入帧送入 AFE；AFE 以约 `512` 个采样点的输出帧驱动中文 MultiNet `mn6_cn`。词表包含亮度控制短语和自定义入口“老鼠狒狒”（命令 ID `1`）。识别到入口后，状态机播放约 `180 ms` 的三段式确认反馈，并进入 `LISTENING` 等待“亮一点/暗一点”等自然语言指令。
 
 AFE 和 I²S 始终持续运行，但 VAD 只在检测到语音以及语音结束后的 `1.2 s` 尾窗内调用 MultiNet；这样避免待机时持续推理造成 CPU 调度和看门狗风险，同时尽量保留词尾。该门控策略不会承诺每次都在说话过程中返回，MultiNet 本身仍可能需要积累判定窗口。
 
-> **English** — The firmware uses `16 kHz`, `16-bit`, mono PCM. It feeds `160`-sample input frames into AFE, which produces approximately `512`-sample frames for Chinese MultiNet `mn6_cn`. The phrase list contains brightness commands and the custom “老鼠狒狒” entry (command ID `3`). After detection, the state machine plays an approximately `180 ms` three-phase acknowledgement and listens for natural-language commands such as “亮一点” or “暗一点”.
+> **English** — The firmware uses `16 kHz`, `16-bit`, mono PCM. It feeds `160`-sample input frames into AFE, which produces approximately `512`-sample frames for Chinese MultiNet `mn6_cn`. The phrase list contains brightness commands and the custom “老鼠狒狒” entry (command ID `1`). After detection, the state machine plays an approximately `180 ms` three-phase acknowledgement and listens for natural-language commands such as “亮一点” or “暗一点”.
 
 I²S and AFE remain active continuously, while VAD gates MultiNet detection to speech activity plus a `1.2 s` hangover. This reduces idle inference load and watchdog risk while preserving phrase endings; it does not guarantee that MultiNet returns before the speaker finishes a phrase.
 
@@ -133,22 +133,26 @@ I²S、PCM 队列和 AFE 会持续运行，但 MultiNet 只在检测到语音活
 当前并没有把“老鼠狒狒”写成 WakeNet 模型名称，也没有把它伪装成官方唤醒词。它是中文 MultiNet 命令词表中的一个自定义拼音短语：
 
 ```text
-3 lao shu fei fei
+1 lao shu fei fei
 ```
 
 这条词表位于 `Firmware/scripts/multinet_commands_cn.txt`。构建前，`Firmware/scripts/generate_model.py` 会调用 ESP-SR 的模型整理脚本，再把主仓库词表复制到 `target/fst/commands_cn.txt`，最后生成并烧录 `model` 分区镜像。运行时，`Firmware/src/multinet_command_recognizer.cpp` 也会通过 ESP-SR 的命令词 API 注册同一组拼音和命令 ID。
 
-识别到命令 ID `3` 后，主循环将它解释为自定义唤醒入口：
+识别到命令 ID `1` 后，主循环将它解释为自定义唤醒入口：
 
 1. 清空上一段 AFE/MultiNet 上下文；
 2. 通知 `VoiceController` 进入 `LISTENING`；
 3. 播放非阻塞双音确认反馈；
-4. 在超时时间内等待 ID `1` 或 ID `2`；
-5. 将亮度增加或降低 `16/255`，然后回到持续监听。
+4. 在超时时间内等待 ID `2` 或 ID `3`；
+5. 按 ID `2/3` 将亮度增加或降低 `16/255`，然后回到持续监听。
+
+命令词的唯一修改入口是 `Firmware/scripts/multinet_commands_cn.txt`：保留 ID `1`，只需修改该行的拼音短语即可更换唤醒词。构建前的一致性检查会校验 ID、重复短语和运行时常量，并自动生成被忽略的 `Firmware/include/generated_multinet_commands.h`；不要直接修改生成文件。
+
+更换步骤：修改 ID `1` 行的无声调拼音 → 重新构建 → 将应用固件和模型分区一起烧录 → 查看 `[ASR] continuous experiment wake_id=1 phrase=...` 日志并实测。当前是构建时配置入口，不是设备运行中的热修改接口；新短语仍需通过 MultiNet 注册并验证识别效果，不保证任意短语都能稳定识别。
 
 因此，“唤醒词”在当前固件中准确的技术名称是：**MultiNet 自定义命令词入口**，而不是独立的 WakeNet 唤醒模型。
 
-> **English** — “老鼠狒狒” is not a WakeNet model name and is not presented as an official wake word. It is registered as the custom Chinese MultiNet phrase `lao shu fei fei` with command ID `3`. After ID `3` is detected, the firmware enters `LISTENING`, plays a non-blocking acknowledgement, waits for brightness command IDs `1` or `2`, applies a `16/255` brightness step, and returns to continuous listening. The accurate technical description is **a MultiNet custom command entry used as an experimental wake trigger**, not a standalone WakeNet model.
+> **English** — “老鼠狒狒” is not a WakeNet model name and is not presented as an official wake word. It is registered as the custom Chinese MultiNet phrase `lao shu fei fei` with command ID `1`. After ID `1` is detected, the firmware enters `LISTENING`, plays a non-blocking acknowledgement, waits for brightness command IDs `2` or `3`, applies a `16/255` brightness step, and returns to continuous listening. The only phrase-editing entry point is `Firmware/scripts/multinet_commands_cn.txt`; the build check generates the runtime header automatically. Changing the tone-free pinyin requires rebuilding and reflashing both the application and the model partition, followed by recognition testing; it is not a runtime setting and arbitrary phrases are not guaranteed to work reliably. The accurate technical description is **a MultiNet custom command entry used as an experimental wake trigger**, not a standalone WakeNet model.
 
 ### 为什么不用现成 WakeNet / Why the supplied WakeNet model is not used
 
@@ -167,7 +171,8 @@ WakeNet 是专门的唤醒模型，但当前 ESP-SR 模型包中的现成模型�
 - `Firmware/src/CMakeLists.txt`：注册固件源文件并声明 `esp-sr` 组件依赖。
 - `Firmware/sdkconfig.defaults`：启用 AFE、中文 MultiNet、模型分区、16 MB Flash 和 OPI PSRAM，并明确关闭 WakeNet。
 - `Firmware/components/esp-sr`：ESP-SR v1.2.0 子模块，提供 AFE/MultiNet 头文件、库和模型工具。
-- `Firmware/scripts/multinet_commands_cn.txt`：项目自有的中文拼音命令词表，是“老鼠狒狒”和亮度命令的源文件。
+- `Firmware/scripts/multinet_commands_cn.txt`：项目自有的中文拼音命令词表，是唤醒词和亮度命令的唯一源文件；ID `1` 为唤醒词，ID `2/3` 为增亮/减亮。
+- `Firmware/scripts/check_multinet_commands.py`：构建前校验命令 ID、重复短语和运行时常量，并生成 `Firmware/include/generated_multinet_commands.h`。
 - `Firmware/scripts/generate_model.py`：将 ESP-SR 模型和项目词表打包成 `model.bin`，并将其加入 PlatformIO 烧录流程。
 
 这些文件共同组成当前语音架构；不能因为没有使用 WakeNet 就删除 `CMakeLists.txt`、`sdkconfig.defaults` 或整个 `esp-sr` 目录。

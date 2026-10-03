@@ -18,6 +18,14 @@ compatibility_config = project_dir / "sdkconfig"
 model_root = project_dir / "target"
 model_bin = build_dir / "model.bin"
 custom_command_file = project_dir / "scripts" / "multinet_commands_cn.txt"
+runtime_command_header = project_dir / "include" / "multinet_command_recognizer.h"
+generated_command_header = project_dir / "include" / "generated_multinet_commands.h"
+sys.path.insert(0, str(project_dir / "scripts"))
+from check_multinet_commands import check_and_generate
+
+check_and_generate(
+    custom_command_file, runtime_command_header, generated_command_header
+)
 partition_file = project_dir / "partitions.csv"
 with partition_file.open(newline="", encoding="utf-8") as partition_stream:
     partition_rows = [

@@ -1,5 +1,7 @@
 #include "multinet_command_recognizer.h"
 
+#include "generated_multinet_commands.h"
+
 extern "C" {
 #include "esp_afe_config.h"
 #include "esp_afe_sr_iface.h"
@@ -18,25 +20,6 @@ namespace {
 constexpr char kModelPartitionLabel[] = "model";
 constexpr char kMultiNetModelName[] = "mn6_cn";
 
-struct CommandPhrase {
-  int commandId;
-  char phonemes[ESP_MN_MAX_PHRASE_LEN + 1];
-};
-
-//  MultiNet 使用拼音命令词；ID=3 同时承担自定义“老鼠狒狒”入口 / MultiNet consumes pinyin phrases; ID 3 is also the custom “老鼠狒狒” entry
-CommandPhrase gCommandPhrases[] = {
-    {kIncreaseBrightnessCommandId, "liang yi dian"},
-    {kIncreaseBrightnessCommandId, "diao liang yi dian"},
-    {kIncreaseBrightnessCommandId, "zeng jia liang du"},
-    {kIncreaseBrightnessCommandId, "ba deng tiao liang"},
-    {kIncreaseBrightnessCommandId, "deng tai an le diao liang"},
-    {kDecreaseBrightnessCommandId, "an yi dian"},
-    {kDecreaseBrightnessCommandId, "diao an yi dian"},
-    {kDecreaseBrightnessCommandId, "jiang di liang du"},
-    {kDecreaseBrightnessCommandId, "ba deng tiao an"},
-    {kDecreaseBrightnessCommandId, "deng tai liang le diao an"},
-    {kWakePhraseCommandId, "lao shu fei fei"},
-};
 
 }
 
@@ -138,8 +121,9 @@ bool MultiNetCommandRecognizer::begin(uint32_t sampleRateHz,
       Serial.println("[ASR] command list initialization failed");
       return false;
     }
-    for (CommandPhrase& phrase : gCommandPhrases) {
-      if (esp_mn_commands_add(phrase.commandId, phrase.phonemes) != ESP_OK) {
+    for (const GeneratedCommandPhrase& phrase : kGeneratedCommandPhrases) {
+      if (esp_mn_commands_add(phrase.commandId,
+                              const_cast<char*>(phrase.phonemes)) != ESP_OK) {
         Serial.printf("[ASR] command phrase rejected: %s\n", phrase.phonemes);
         return false;
       }
@@ -164,10 +148,9 @@ bool MultiNetCommandRecognizer::begin(uint32_t sampleRateHz,
                 static_cast<double>(fetchFrameSamples_) /
                     static_cast<double>(feedFrameSamples_),
                 static_cast<unsigned>(feedFramesPerFetch_),
-                static_cast<unsigned>(sizeof(gCommandPhrases) /
-                                     sizeof(gCommandPhrases[0])));
-  Serial.printf("[ASR] continuous experiment wake_id=%d phrase=lao shu fei fei\n",
-                kWakePhraseCommandId);
+                static_cast<unsigned>(kGeneratedCommandPhraseCount));
+  Serial.printf("[ASR] continuous experiment wake_id=%d phrase=%s\n",
+                kWakePhraseCommandId, kGeneratedWakePhrasePinyin);
   return true;
 }
 
