@@ -31,13 +31,13 @@ size_t PcmAudioFrameBuffer::pushInterleavedWords(const int32_t* words,
 
 //  从队列取出一帧完整 PCM 数据 / Pop one complete PCM frame from the queue
 bool PcmAudioFrameBuffer::popFrame(int16_t* frame, size_t sampleCount) {
-  if (frame == nullptr || sampleCount != kWakeWordFrameSamples ||
+  if (frame == nullptr || sampleCount != kPcmAudioFrameSamples ||
       queuedFrameCount_ == 0U) {
     return false;
   }
 
-  std::copy_n(frameQueue_[queueReadIndex_], kWakeWordFrameSamples, frame);
-  queueReadIndex_ = (queueReadIndex_ + 1U) % kWakeWordFrameQueueCapacity;
+  std::copy_n(frameQueue_[queueReadIndex_], kPcmAudioFrameSamples, frame);
+  queueReadIndex_ = (queueReadIndex_ + 1U) % kPcmAudioFrameQueueCapacity;
   --queuedFrameCount_;
   return true;
 }
@@ -53,22 +53,22 @@ uint32_t PcmAudioFrameBuffer::droppedFrames() const {
 //  将一个采样追加到当前写入帧 / Append one sample to the current write frame
 void PcmAudioFrameBuffer::appendSample(int16_t sample) {
   pendingSamples_[pendingSampleCount_++] = sample;
-  if (pendingSampleCount_ < kWakeWordFrameSamples) {
+  if (pendingSampleCount_ < kPcmAudioFrameSamples) {
     return;
   }
 
-  if (queuedFrameCount_ >= kWakeWordFrameQueueCapacity) {
+  if (queuedFrameCount_ >= kPcmAudioFrameQueueCapacity) {
     ++droppedFrameCount_;
   } else {
-    std::copy_n(pendingSamples_, kWakeWordFrameSamples,
+    std::copy_n(pendingSamples_, kPcmAudioFrameSamples,
                 frameQueue_[queueWriteIndex_]);
-    queueWriteIndex_ = (queueWriteIndex_ + 1U) % kWakeWordFrameQueueCapacity;
+    queueWriteIndex_ = (queueWriteIndex_ + 1U) % kPcmAudioFrameQueueCapacity;
     ++queuedFrameCount_;
   }
   pendingSampleCount_ = 0;
 }
 
-//  将 I2S 容器样本转换为 WakeNet PCM16 / Convert an I2S container sample to WakeNet PCM16
+//  将 I2S 容器样本转换为 AFE PCM16 / Convert an I2S container sample to AFE PCM16
 int16_t convertI2sSampleToPcm16(int32_t rawSample) {
   const int32_t shiftedSample = rawSample >> 16;
   const int32_t minimumSample =

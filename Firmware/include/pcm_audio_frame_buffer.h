@@ -9,9 +9,9 @@
 
 namespace OmiPetAudio {
 
-//  WakeNet 音频帧配置 / WakeNet audio frame configuration
-constexpr size_t kWakeWordFrameSamples = 512;
-constexpr size_t kWakeWordFrameQueueCapacity = 4;
+//  AFE 输入音频帧配置 / AFE input audio frame configuration
+constexpr size_t kPcmAudioFrameSamples = 160;
+constexpr size_t kPcmAudioFrameQueueCapacity = 8;
 
 //  固定长度 PCM 音频帧缓冲 / Fixed-size PCM audio frame buffer
 class PcmAudioFrameBuffer {
@@ -35,9 +35,9 @@ class PcmAudioFrameBuffer {
  private:
   void appendSample(int16_t sample);
 
-  int16_t pendingSamples_[kWakeWordFrameSamples] = {};
+  int16_t pendingSamples_[kPcmAudioFrameSamples] = {};
   size_t pendingSampleCount_ = 0;
-  int16_t frameQueue_[kWakeWordFrameQueueCapacity][kWakeWordFrameSamples] = {};
+  int16_t frameQueue_[kPcmAudioFrameQueueCapacity][kPcmAudioFrameSamples] = {};
   size_t queueReadIndex_ = 0;
   size_t queueWriteIndex_ = 0;
   size_t queuedFrameCount_ = 0;

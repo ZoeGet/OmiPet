@@ -12,15 +12,19 @@
 //  OmiPet 固件主循环和模块编排 / OmiPet firmware entry point and module orchestration
 #include "ics43434_mic.h"
 #include "pcm_audio_frame_buffer.h"
-#include "wake_word_detector.h"
+#include "multinet_command_recognizer.h"
 #include "voice_controller.h"
 
 namespace {
 
-constexpr size_t kMicDiagnosticFrameCount = 800;
+constexpr size_t kMicDiagnosticFrameCount = 160;
 constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;
-constexpr uint32_t kMicWindowIntervalMs = 50;
+constexpr uint32_t kMicWindowIntervalMs = 10;
 constexpr uint32_t kMicLogIntervalMs = 1000;
+//  语音结束后保留一段 MultiNet 检测尾窗，避免漏掉词尾 / Keep a MultiNet detection hangover after speech to avoid missing phrase endings
+constexpr uint32_t kSpeechDetectionHangoverMs = 1200;
+//  限制单次主循环处理的音频帧数，避免识别任务长期占满 CPU / Limit frames processed per loop so recognition cannot monopolize the CPU
+constexpr size_t kMaxCommandFramesPerLoop = 4;
 constexpr uint32_t kMinimumSpeechStartRms = 10000;
 constexpr uint32_t kMinimumSpeechHoldRms = 5000;
 constexpr uint8_t kSpeechStartWindowCount = 3;
@@ -34,6 +38,8 @@ bool gMicNoiseFloorInitialized = false;
 uint8_t gSpeechStartWindows = 0;
 uint8_t gSpeechQuietWindows = 0;
 bool gSpeechActive = false;
+//  记录最近一次 VAD 语音活动，用于维持检测尾窗 / Track the latest VAD activity to maintain the detection hangover
+uint32_t gLastSpeechActivityMs = 0;
 uint32_t gLastMicThreshold = 0;
 bool gLastSpeechCandidate = false;
 
@@ -45,10 +51,14 @@ struct MicLevelStats {
 };
 
 MicLevelStats gLastMicStats;
-OmiPetAudio::PcmAudioFrameBuffer gWakeWordAudioBuffer;
-int16_t gWakeWordPcmFrame[OmiPetAudio::kWakeWordFrameSamples] = {};
-uint32_t gWakeWordFrameCount = 0;
+OmiPetAudio::PcmAudioFrameBuffer gCommandAudioBuffer;
+int16_t gCommandPcmFrame[OmiPetAudio::kPcmAudioFrameSamples] = {};
+uint32_t gCommandFrameCount = 0;
 uint32_t gLastAudioFrameLogMs = 0;
+uint32_t gSpeechStartAtMs = 0;
+uint32_t gSpeechStopAtMs = 0;
+uint32_t gWakeAcceptedAtMs = 0;
+bool gSpeechTimingValid = false;
 
 //  计算选定声道的音量统计 / Calculate level statistics for the selected channel
 MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
@@ -131,7 +141,7 @@ bool updateSpeechState(bool speechCandidate) {
   return gSpeechActive;
 }
 
-//  每 50 ms 处理音频窗口，每秒打印一次状态 / Process an audio window every 50 ms and print status once per second
+//  每 10 ms 处理音频窗口，每秒打印一次状态 / Process an audio window every 10 ms and print status once per second
 //  读取麦克风窗口并输出诊断数据 / Read a microphone window and print diagnostics
 void updateMicrophoneDiagnostic() {
   const uint32_t nowMs = millis();
@@ -158,10 +168,13 @@ void updateMicrophoneDiagnostic() {
     return;
   }
 
-  gWakeWordAudioBuffer.pushInterleavedWords(
-      gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
   gLastMicStats = analyzeMicrophoneLevel(
       gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
+  if (OmiPetAudio::multiNetCommandRecognizer.available()) {
+    //  无论是否允许识别，都先把音频送入 AFE 处理链 / Always feed audio into the AFE pipeline, even when detection is gated off
+    gCommandAudioBuffer.pushInterleavedWords(
+        gMicDiagnosticWords, wordCount, OmiPetAudio::microphone.channel());
+  }
   const bool speechWasActive = gSpeechActive;
   if (OmiPetVoice::voice.speechInputSuppressed()) {
     gLastSpeechCandidate = false;
@@ -171,6 +184,9 @@ void updateMicrophoneDiagnostic() {
   } else {
     gLastSpeechCandidate =
         detectSpeech(gLastMicStats.rms, gLastMicThreshold);
+    if (gLastSpeechCandidate) {
+      gLastSpeechActivityMs = nowMs;
+    }
     updateSpeechState(gLastSpeechCandidate);
   }
   if (speechWasActive != gSpeechActive) {
@@ -178,6 +194,20 @@ void updateMicrophoneDiagnostic() {
                   gSpeechActive ? "start" : "stop",
                   static_cast<unsigned long>(gLastMicStats.rms),
                   static_cast<unsigned long>(gLastMicThreshold));
+    if (gSpeechActive) {
+      gSpeechStartAtMs = nowMs;
+      gSpeechTimingValid = true;
+      Serial.printf("[TIMING] speech_start ms=%lu\n",
+                    static_cast<unsigned long>(gSpeechStartAtMs));
+    } else {
+      gSpeechStopAtMs = nowMs;
+      Serial.printf("[TIMING] speech_stop ms=%lu duration_ms=%lu\n",
+                    static_cast<unsigned long>(gSpeechStopAtMs),
+                    gSpeechTimingValid
+                        ? static_cast<unsigned long>(gSpeechStopAtMs -
+                                                     gSpeechStartAtMs)
+                        : 0UL);
+    }
   }
   if (nowMs - gLastMicLogMs < kMicLogIntervalMs) {
     return;
@@ -197,20 +227,88 @@ void updateMicrophoneDiagnostic() {
       static_cast<unsigned>(gSpeechQuietWindows));
 }
 
-//  消费固定长度 PCM 音频帧并输出缓冲诊断 / Consume fixed-size PCM frames and print buffer diagnostics
-//  将 PCM 帧提交给唤醒词后端 / Submit PCM frames to the wake-word backend
-void updateWakeWordAudioFrames() {
+//  将连续采集的 PCM 帧送入离线命令识别器 / Submit continuously captured PCM frames to the offline command recognizer
+void updateCommandAudioFrames() {
   size_t processedFrameCount = 0;
-  while (gWakeWordAudioBuffer.popFrame(
-      gWakeWordPcmFrame, OmiPetAudio::kWakeWordFrameSamples)) {
+  while (gCommandAudioBuffer.popFrame(
+             gCommandPcmFrame, OmiPetAudio::kPcmAudioFrameSamples) &&
+         processedFrameCount < kMaxCommandFramesPerLoop) {
     ++processedFrameCount;
-    if (OmiPetAudio::wakeWordDetector.processFrame(
-            gWakeWordPcmFrame, OmiPetAudio::kWakeWordFrameSamples)) {
-      Serial.println("[WAKE] wake word detected");
-      OmiPetVoice::voice.notifyWakeWordDetected();
+    const uint32_t nowMs = millis();
+    //  AFE 持续运行，但只有语音活动或尾窗内才调用 MultiNet 推理 / Keep AFE running continuously, but invoke MultiNet only during speech or hangover
+    const bool speechDetectionWindowOpen =
+        gSpeechActive ||
+        (gLastSpeechActivityMs != 0U &&
+         nowMs - gLastSpeechActivityMs <= kSpeechDetectionHangoverMs);
+    const bool allowDetection =
+        speechDetectionWindowOpen &&
+        !OmiPetVoice::voice.speechInputSuppressed();
+    const uint32_t detectStartedAtMs = millis();
+    const int commandId = OmiPetAudio::multiNetCommandRecognizer.processFrame(
+        gCommandPcmFrame, OmiPetAudio::kPcmAudioFrameSamples,
+        allowDetection);
+    const uint32_t detectFinishedAtMs = millis();
+    if (commandId == OmiPetAudio::kWakePhraseCommandId &&
+        OmiPetVoice::voice.state() == OmiPetVoice::VoiceState::Idle) {
+      const uint32_t speechAgeMs =
+          gSpeechTimingValid ? detectFinishedAtMs - gSpeechStartAtMs : 0U;
+      const uint32_t speechStopAgeMs =
+          gSpeechTimingValid && gSpeechStopAtMs >= gSpeechStartAtMs
+              ? detectFinishedAtMs - gSpeechStopAtMs
+              : 0U;
+      Serial.printf(
+          "[TIMING] wake_result ms=%lu infer_ms=%lu since_speech_start_ms=%lu "
+          "since_speech_stop_ms=%lu\n",
+          static_cast<unsigned long>(detectFinishedAtMs),
+          static_cast<unsigned long>(detectFinishedAtMs - detectStartedAtMs),
+          static_cast<unsigned long>(speechAgeMs),
+          static_cast<unsigned long>(speechStopAgeMs));
+      OmiPetAudio::multiNetCommandRecognizer.reset();
+      gCommandAudioBuffer.reset();
+      Serial.println("[VOICE] continuous wake phrase detected");
+      if (OmiPetVoice::voice.notifyWakeWordDetected()) {
+        gWakeAcceptedAtMs = millis();
+        Serial.printf("[TIMING] wake_accepted ms=%lu\n",
+                      static_cast<unsigned long>(gWakeAcceptedAtMs));
+      }
+      continue;
     }
+    if ((commandId == OmiPetAudio::kIncreaseBrightnessCommandId ||
+         commandId == OmiPetAudio::kDecreaseBrightnessCommandId) &&
+        OmiPetVoice::voice.listeningForCommand()) {
+      const uint32_t speechAgeMs =
+          gSpeechTimingValid ? detectFinishedAtMs - gSpeechStartAtMs : 0U;
+      const uint32_t wakeAgeMs = gWakeAcceptedAtMs != 0U
+                                      ? detectFinishedAtMs - gWakeAcceptedAtMs
+                                      : 0U;
+      Serial.printf(
+          "[TIMING] command_result ms=%lu infer_ms=%lu "
+          "since_speech_start_ms=%lu since_wake_accepted_ms=%lu\n",
+          static_cast<unsigned long>(detectFinishedAtMs),
+          static_cast<unsigned long>(detectFinishedAtMs - detectStartedAtMs),
+          static_cast<unsigned long>(speechAgeMs),
+          static_cast<unsigned long>(wakeAgeMs));
+      const int currentBrightness = OmiPetLed::strip.brightness();
+      const int brightnessStep =
+          commandId == OmiPetAudio::kIncreaseBrightnessCommandId ? 16 : -16;
+      const int updatedBrightness = std::max(
+          0, std::min(currentBrightness + brightnessStep, 255));
+      OmiPetLed::strip.setBrightness(static_cast<uint8_t>(updatedBrightness));
+      OmiPetLed::strip.show();
+      Serial.printf("[LED] brightness=%d command=%s\n", updatedBrightness,
+                    commandId == OmiPetAudio::kIncreaseBrightnessCommandId
+                        ? "increase"
+                        : "decrease");
+      Serial.printf("[TIMING] command_executed ms=%lu detect_to_led_ms=%lu\n",
+                    static_cast<unsigned long>(millis()),
+                    static_cast<unsigned long>(millis() - detectFinishedAtMs));
+      OmiPetAudio::multiNetCommandRecognizer.reset();
+      OmiPetVoice::voice.notifyCommandCompleted();
+    }
+    //  每帧主动让出 CPU，确保系统空闲任务和看门狗获得调度 / Yield after each frame so idle tasks and the watchdog can run
+    yield();
   }
-  gWakeWordFrameCount += static_cast<uint32_t>(processedFrameCount);
+  gCommandFrameCount += static_cast<uint32_t>(processedFrameCount);
 
   const uint32_t nowMs = millis();
   if (nowMs - gLastAudioFrameLogMs < kMicLogIntervalMs) {
@@ -218,20 +316,24 @@ void updateWakeWordAudioFrames() {
   }
   gLastAudioFrameLogMs = nowMs;
   Serial.printf(
-      "[AUDIO] pcm16_frames=%lu samples_per_frame=%u rate=%lu channel=right queued=%u dropped=%lu\n",
-      static_cast<unsigned long>(gWakeWordFrameCount),
-      static_cast<unsigned>(OmiPetAudio::kWakeWordFrameSamples),
+      "[AUDIO] command_frames=%lu samples_per_frame=%u rate=%lu channel=right queued=%u dropped=%lu\n",
+      static_cast<unsigned long>(gCommandFrameCount),
+      static_cast<unsigned>(OmiPetAudio::kPcmAudioFrameSamples),
       static_cast<unsigned long>(OmiPetAudio::kMicDefaultSampleRateHz),
-      static_cast<unsigned>(gWakeWordAudioBuffer.queuedFrames()),
-      static_cast<unsigned long>(gWakeWordAudioBuffer.droppedFrames()));
+      static_cast<unsigned>(gCommandAudioBuffer.queuedFrames()),
+      static_cast<unsigned long>(gCommandAudioBuffer.droppedFrames()));
 }
-//  处理临时语音唤醒测试命令 / Process the temporary voice wake test command
+//  处理串口临时唤醒测试命令 / Process the temporary serial wake test command
 void updateVoiceDebugInput() {
   while (Serial.available() > 0) {
     const int input = Serial.read();
     if (input == 'w') {
-      Serial.println("[VOICE] debug wake command");
-      OmiPetVoice::voice.notifyWakeWordDetected();
+      if (OmiPetVoice::voice.state() == OmiPetVoice::VoiceState::Idle) {
+        gCommandAudioBuffer.reset();
+        OmiPetAudio::multiNetCommandRecognizer.reset();
+        Serial.println("[VOICE] serial wake trigger (debug fallback; continuous recognition active)");
+        OmiPetVoice::voice.notifyWakeWordDetected();
+      }
     }
   }
 }
@@ -297,14 +399,11 @@ void setup() {
                 static_cast<unsigned>(OmiPetAudio::kMicWsPin),
                 static_cast<unsigned>(OmiPetAudio::kMicSdPin));
 
-  const bool wakeInputReady = OmiPetAudio::wakeWordDetector.begin(
-      OmiPetAudio::kMicDefaultSampleRateHz, OmiPetAudio::kWakeWordFrameSamples);
-  Serial.printf("[WAKE] backend=%s input=%s status=%s model=%s\n",
-                OmiPetAudio::wakeWordDetector.backendName(),
-                wakeInputReady ? "ok" : "invalid",
-                OmiPetAudio::wakeWordDetector.available() ? "ready"
-                                                           : "unavailable",
-                OmiPetAudio::wakeWordDetector.modelName());
+  const bool recognizerReady = OmiPetAudio::multiNetCommandRecognizer.begin(
+      OmiPetAudio::kMicDefaultSampleRateHz, OmiPetAudio::kPcmAudioFrameSamples);
+  Serial.printf("[ASR] init=%s frame=%u\n",
+                recognizerReady ? "ready" : "unavailable",
+                static_cast<unsigned>(OmiPetAudio::kPcmAudioFrameSamples));
 }
 
 //  执行非阻塞业务更新 / Run non-blocking application updates
@@ -313,9 +412,16 @@ void loop() {
   OmiPetNetwork::wifi.update();
   updateSystemHeartbeat();
   updateMicrophoneDiagnostic();
-  updateWakeWordAudioFrames();
+  updateCommandAudioFrames();
   updateVoiceDebugInput();
+  const bool wasListeningForCommand =
+      OmiPetVoice::voice.listeningForCommand();
   OmiPetVoice::voice.update(gSpeechActive);
+  if (wasListeningForCommand &&
+      !OmiPetVoice::voice.listeningForCommand()) {
+    OmiPetAudio::multiNetCommandRecognizer.reset();
+    gCommandAudioBuffer.reset();
+  }
   OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
                              OmiPetNetwork::wifi.provisioning());
 
