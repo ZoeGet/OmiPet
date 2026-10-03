@@ -86,6 +86,92 @@ I²S and AFE remain active continuously, while VAD gates MultiNet detection to s
 
 > **English** — During the acknowledgement tone and for 200 ms afterward, VAD state updates are temporarily suppressed while I²S/PCM capture continues, preventing buzzer feedback from triggering speech-start events.
 
+## 语音技术栈与唤醒词架构 / Voice Stack and Wake Phrase Architecture
+
+### 技术栈 / Technology stack
+
+当前语音功能采用 **Arduino 应用层 + ESP-IDF 底层 + ESP-SR 语音组件**，不是只依赖 Arduino 库的纯软件实现：
+
+| 层级 / Layer | 当前实现 / Current implementation |
+| --- | --- |
+| 构建系统 / Build system | PlatformIO，`framework = arduino, espidf` |
+| 应用逻辑 / Application logic | Arduino `setup()`/`loop()`、GPIO、灯带、蜂鸣器、UI 和状态机 |
+| 音频底层 / Audio layer | ESP-IDF 旧版 I²S 驱动 `<driver/i2s.h>`，驱动 ICS-43434 |
+| 语音前端 / Speech front end | ESP-SR AFE，负责音频预处理、AGC 和 VAD |
+| 命令识别 / Command recognition | ESP-SR v1.2.0 中文 MultiNet `mn6_cn` |
+| 模型存储 / Model storage | `model` 分区中的 SPIFFS 模型镜像 |
+| 内存与芯片 / Memory and chip | ESP32-S3-WROOM-1-N16R8，OPI PSRAM，模型和 AFE 缓冲优先使用 PSRAM |
+
+Arduino 负责设备业务和主循环；ESP-IDF 提供 I²S、FreeRTOS 调度和底层硬件接口；ESP-SR 提供 AFE、MultiNet 接口和语音模型。三者是同一份固件中的分层协作关系，不是互相替代的三套方案。
+
+> **English** — The voice feature uses an **Arduino application layer + ESP-IDF low-level APIs + ESP-SR speech components**. Arduino handles `setup()`/`loop()`, device behavior, LEDs, buzzer, UI, and state transitions. ESP-IDF supplies I²S, scheduling, and hardware-level services. ESP-SR supplies the AFE, VAD, MultiNet interfaces, and speech models. This is an Arduino-based application built on the ESP-IDF component layer, not an Arduino-only library implementation.
+
+### 音频处理流程 / Audio processing pipeline
+
+```text
+ICS-43434 I²S
+    ↓
+ESP-IDF I²S RX（GPIO5/GPIO6/GPIO7，16 kHz，32-bit slot）
+    ↓
+右声道槽提取与 PCM16 转换
+    ↓
+160-sample PCM frame queue
+    ↓
+ESP-SR AFE（持续 feed/fetch，包含 VAD）
+    ↓
+VAD 语音窗口 + 1.2 s 尾窗门控
+    ↓
+ESP-SR MultiNet `mn6_cn`
+    ↓
+命令 ID → 唤醒状态机或灯带业务
+```
+
+I²S、PCM 队列和 AFE 会持续运行，但 MultiNet 只在检测到语音活动或最近 `1.2 s` 的语音尾窗内进行判定。这样可以避免空闲时持续运行 MultiNet 引起 CPU 调度压力和看门狗风险，同时尽量保留词尾音频。
+
+### “老鼠狒狒”如何实现 / How “老鼠狒狒” is implemented
+
+当前并没有把“老鼠狒狒”写成 WakeNet 模型名称，也没有把它伪装成官方唤醒词。它是中文 MultiNet 命令词表中的一个自定义拼音短语：
+
+```text
+3 lao shu fei fei
+```
+
+这条词表位于 `Firmware/scripts/multinet_commands_cn.txt`。构建前，`Firmware/scripts/generate_model.py` 会调用 ESP-SR 的模型整理脚本，再把主仓库词表复制到 `target/fst/commands_cn.txt`，最后生成并烧录 `model` 分区镜像。运行时，`Firmware/src/multinet_command_recognizer.cpp` 也会通过 ESP-SR 的命令词 API 注册同一组拼音和命令 ID。
+
+识别到命令 ID `3` 后，主循环将它解释为自定义唤醒入口：
+
+1. 清空上一段 AFE/MultiNet 上下文；
+2. 通知 `VoiceController` 进入 `LISTENING`；
+3. 播放非阻塞双音确认反馈；
+4. 在超时时间内等待 ID `1` 或 ID `2`；
+5. 将亮度增加或降低 `16/255`，然后回到持续监听。
+
+因此，“唤醒词”在当前固件中准确的技术名称是：**MultiNet 自定义命令词入口**，而不是独立的 WakeNet 唤醒模型。
+
+> **English** — “老鼠狒狒” is not a WakeNet model name and is not presented as an official wake word. It is registered as the custom Chinese MultiNet phrase `lao shu fei fei` with command ID `3`. After ID `3` is detected, the firmware enters `LISTENING`, plays a non-blocking acknowledgement, waits for brightness command IDs `1` or `2`, applies a `16/255` brightness step, and returns to continuous listening. The accurate technical description is **a MultiNet custom command entry used as an experimental wake trigger**, not a standalone WakeNet model.
+
+### 为什么不用现成 WakeNet / Why the supplied WakeNet model is not used
+
+WakeNet 是专门的唤醒模型，但当前 ESP-SR 模型包中的现成模型对应固定唤醒短语，例如 `wn9_hiesp` 对应 `Hi ESP`。把配置中的字符串改成“老鼠狒狒”，不会改变神经网络已经训练好的识别目标；真正的自定义 WakeNet 需要与目标短语匹配的定制模型，并且还要重新完成模型打包、容量确认、误唤醒率和漏唤醒率验证。
+
+本项目当前没有“老鼠狒狒”的定制 WakeNet 模型，而项目目标又明确要求自定义唤醒词，因此不能直接使用现成 WakeNet 冒充已经实现了目标词。当前配置明确关闭 WakeNet：`CONFIG_USE_WAKENET=n`，运行时 AFE 配置也设置 `wakenet_init = false`。
+
+选择 MultiNet 自定义命令词作为实验入口，是因为它允许我们在现有中文 `mn6_cn` 模型上注册自己的拼音短语，不需要等待或伪造一个不存在的定制 WakeNet 模型。代价是 MultiNet 不是低延迟专用唤醒引擎：当前实测“老鼠狒狒”通常在语音结束后还要等待约 `1.1–1.3 s`，并且仍需继续验证误识别、误触发和长期稳定性。
+
+> **English** — WakeNet is a dedicated wake-word model, but the bundled model is trained for fixed phrases such as `Hi ESP`. Changing a configuration string does not retrain the neural network. A real custom WakeNet phrase requires a matching custom model, followed by model packaging, capacity checks, false-trigger testing, and missed-wake testing. Because this project does not currently have a custom “老鼠狒狒” WakeNet model, WakeNet is explicitly disabled. MultiNet custom commands provide a workable offline experimental entry, but they are not a low-latency dedicated wake engine; the current measured wake-result delay is typically about `1.1–1.3 s` after speech ends.
+
+### 关键构建文件 / Important build files
+
+- `Firmware/platformio.ini`：声明 Arduino + ESP-IDF 双框架、PlatformIO 环境和模型预构建脚本。
+- `Firmware/CMakeLists.txt`：ESP-IDF 工程入口。
+- `Firmware/src/CMakeLists.txt`：注册固件源文件并声明 `esp-sr` 组件依赖。
+- `Firmware/sdkconfig.defaults`：启用 AFE、中文 MultiNet、模型分区、16 MB Flash 和 OPI PSRAM，并明确关闭 WakeNet。
+- `Firmware/components/esp-sr`：ESP-SR v1.2.0 子模块，提供 AFE/MultiNet 头文件、库和模型工具。
+- `Firmware/scripts/multinet_commands_cn.txt`：项目自有的中文拼音命令词表，是“老鼠狒狒”和亮度命令的源文件。
+- `Firmware/scripts/generate_model.py`：将 ESP-SR 模型和项目词表打包成 `model.bin`，并将其加入 PlatformIO 烧录流程。
+
+这些文件共同组成当前语音架构；不能因为没有使用 WakeNet 就删除 `CMakeLists.txt`、`sdkconfig.defaults` 或整个 `esp-sr` 目录。
+
 ## 硬件资料 / Hardware Resources
 
 - [原理图 / Schematic](Hardware/Schematic/Omi_Schematic.pdf)
