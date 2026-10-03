@@ -17,6 +17,7 @@
 
 namespace {
 
+//  音频链路为 I2S、PCM 队列、AFE、VAD 和 MultiNet 的串联流程 / The audio path chains I2S, PCM queue, AFE, VAD, and MultiNet
 //  麦克风诊断窗口和周期参数 / Microphone diagnostic window and periodic timing parameters
 constexpr size_t kMicDiagnosticFrameCount = 160;
 constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;
@@ -98,7 +99,6 @@ MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
   return stats;
 }
 
-//  更新自适应噪声底并检测语音 / Update the adaptive noise floor and detect speech
 //  根据动态噪声底估算语音候选状态 / Estimate speech candidacy from the adaptive noise floor
 bool detectSpeech(uint32_t rms, uint32_t& threshold) {
   if (!gMicNoiseFloorInitialized) {
@@ -146,8 +146,8 @@ bool updateSpeechState(bool speechCandidate) {
   return gSpeechActive;
 }
 
-//  每 10 ms 处理音频窗口，每秒打印一次状态 / Process an audio window every 10 ms and print status once per second
-//  读取麦克风窗口并输出诊断数据 / Read a microphone window and print diagnostics
+//  读取麦克风窗口、更新 VAD 状态，并把 PCM 帧送入识别队列 / Read microphone windows, update VAD, and queue PCM frames
+//  每 10 ms 处理音频窗口，每秒打印一次诊断状态 / Process an audio window every 10 ms and print diagnostics once per second
 void updateMicrophoneDiagnostic() {
   const uint32_t nowMs = millis();
   if (nowMs - gLastMicWindowMs < kMicWindowIntervalMs) {
@@ -233,6 +233,7 @@ void updateMicrophoneDiagnostic() {
 }
 
 //  将连续采集的 PCM 帧送入离线命令识别器 / Submit continuously captured PCM frames to the offline command recognizer
+//  AFE 始终接收音频，allowDetection 只控制 MultiNet 是否实际判定 / AFE always receives audio; allowDetection only gates MultiNet decisions
 void updateCommandAudioFrames() {
   size_t processedFrameCount = 0;
   while (gCommandAudioBuffer.popFrame(
@@ -253,6 +254,7 @@ void updateCommandAudioFrames() {
         gCommandPcmFrame, OmiPetAudio::kPcmAudioFrameSamples,
         allowDetection);
     const uint32_t detectFinishedAtMs = millis();
+    //  自定义词 ID=3 作为待机入口，识别后清空上一段模型上下文 / Use custom phrase ID 3 as the idle entry and clear the previous model context
     if (commandId == OmiPetAudio::kWakePhraseCommandId &&
         OmiPetVoice::voice.state() == OmiPetVoice::VoiceState::Idle) {
       const uint32_t speechAgeMs =
@@ -278,6 +280,7 @@ void updateCommandAudioFrames() {
       }
       continue;
     }
+    //  唤醒后只接受有限的亮度命令 ID，执行成功后回到持续监听 / After wake-up accept only brightness command IDs, then return to continuous listening
     if ((commandId == OmiPetAudio::kIncreaseBrightnessCommandId ||
          commandId == OmiPetAudio::kDecreaseBrightnessCommandId) &&
         OmiPetVoice::voice.listeningForCommand()) {
@@ -328,7 +331,7 @@ void updateCommandAudioFrames() {
       static_cast<unsigned>(gCommandAudioBuffer.queuedFrames()),
       static_cast<unsigned long>(gCommandAudioBuffer.droppedFrames()));
 }
-//  处理串口临时唤醒测试命令 / Process the temporary serial wake test command
+//  处理串口临时唤醒测试命令，不参与正常唤醒路径 / Process the temporary serial wake test command; it is not part of normal wake detection
 void updateVoiceDebugInput() {
   while (Serial.available() > 0) {
     const int input = Serial.read();
@@ -342,7 +345,7 @@ void updateVoiceDebugInput() {
     }
   }
 }
-//  持续输出系统心跳 / Print a persistent system heartbeat
+//  持续输出系统心跳，帮助区分识别失败和系统停滞 / Print a persistent heartbeat to distinguish recognition failures from a stalled system
 void updateSystemHeartbeat() {
   if (millis() - gLastSystemHeartbeatMs < 2000U) {
     return;
@@ -411,7 +414,7 @@ void setup() {
                 static_cast<unsigned>(OmiPetAudio::kPcmAudioFrameSamples));
 }
 
-//  执行非阻塞业务更新 / Run non-blocking application updates
+//  按固定顺序执行非阻塞更新：网络、采集、识别、传感器和 UI / Run non-blocking updates in order: network, capture, recognition, sensors, and UI
 void loop() {
   //  处理 WiFiManager 网页配网和连接状态 / Process WiFiManager provisioning and connection state
   OmiPetNetwork::wifi.update();
