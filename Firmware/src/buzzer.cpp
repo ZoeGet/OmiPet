@@ -5,7 +5,7 @@ namespace OmiPetBuzzer {
 namespace {
 
 //  10-bit LEDC 分辨率对应的最大占空比 / Maximum duty value for 10-bit LEDC resolution
-constexpr uint32_t kPwmMaxDuty = (1UL << kBuzzerPwmResolutionBits) - 1UL;
+constexpr uint32_t kPwmMaxDuty = (1UL << kBuzzerPwmResolutionBits) - 1UL;  //  当前 PWM 分辨率下的最大占空比计数值 / Maximum duty-count value for the configured PWM resolution
 
 }  //  匿名命名空间 / Anonymous namespace
 

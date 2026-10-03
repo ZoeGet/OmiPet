@@ -19,7 +19,7 @@ struct Glyph {
 };
 
 //  简单 5×7 字模 / Simple 5x7 bitmap font
-constexpr Glyph kFont[] = {
+constexpr Glyph kFont[] = {  //  内置 ASCII 5×7 字模表 / Built-in ASCII 5x7 glyph table
     {' ', {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
     {'-', {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}},
     {':', {0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00}},
@@ -63,17 +63,17 @@ constexpr Glyph kFont[] = {
     {'Z', {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}},
 };
 
-constexpr uint16_t kBackground =
+constexpr uint16_t kBackground =  //  UI 背景色 / UI background color
     OmiPetDisplay::Display::color565(5, 12, 28);
-constexpr uint16_t kAccent = OmiPetDisplay::Display::color565(72, 220, 255);
-constexpr uint16_t kPetColor = OmiPetDisplay::Display::color565(255, 180, 80);
-constexpr uint16_t kWhite = OmiPetDisplay::Display::color565(245, 248, 255);
-constexpr uint16_t kGreen = OmiPetDisplay::Display::color565(100, 235, 150);
-constexpr uint16_t kYellow = OmiPetDisplay::Display::color565(255, 220, 80);
-constexpr uint16_t kRed = OmiPetDisplay::Display::color565(255, 90, 90);
-constexpr uint16_t kDark = OmiPetDisplay::Display::color565(5, 12, 28);
+constexpr uint16_t kAccent = OmiPetDisplay::Display::color565(72, 220, 255);  //  UI 强调色 / UI accent color
+constexpr uint16_t kPetColor = OmiPetDisplay::Display::color565(255, 180, 80);  //  宠物主体颜色 / Pet body color
+constexpr uint16_t kWhite = OmiPetDisplay::Display::color565(245, 248, 255);  //  UI 白色文字颜色 / UI white text color
+constexpr uint16_t kGreen = OmiPetDisplay::Display::color565(100, 235, 150);  //  正常状态颜色 / Normal-status color
+constexpr uint16_t kYellow = OmiPetDisplay::Display::color565(255, 220, 80);  //  提示状态颜色 / Attention-status color
+constexpr uint16_t kRed = OmiPetDisplay::Display::color565(255, 90, 90);  //  错误状态颜色 / Error-status color
+constexpr uint16_t kDark = OmiPetDisplay::Display::color565(5, 12, 28);  //  深色填充颜色 / Dark fill color
 
-constexpr int16_t kScreenWidth = OmiPetDisplay::kPanelWidth;
+constexpr int16_t kScreenWidth = OmiPetDisplay::kPanelWidth;  //  屏幕面板宽度 / Display-panel width
 
 uint32_t gClockStartMillis = 0;
 uint32_t gClockBaseSeconds = 0;

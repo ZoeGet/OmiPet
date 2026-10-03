@@ -17,8 +17,8 @@ namespace OmiPetAudio {
 namespace {
 
 //  ESP-SR 模型分区和当前使用的中文 MultiNet 模型 / ESP-SR model partition and the active Chinese MultiNet model
-constexpr char kModelPartitionLabel[] = "model";
-constexpr char kMultiNetModelName[] = "mn6_cn";
+constexpr char kModelPartitionLabel[] = "model";  //  ESP-SR 模型分区标签 / ESP-SR model-partition label
+constexpr char kMultiNetModelName[] = "mn6_cn";  //  当前使用的中文 MultiNet 模型名 / Active Chinese MultiNet model name
 
 
 }
@@ -51,14 +51,14 @@ bool MultiNetCommandRecognizer::begin(uint32_t sampleRateHz,
   afeConfig.wakenet_init = false;
   afeConfig.vad_mode = VAD_MODE_3;
   afeConfig.afe_mode = SR_MODE_LOW_COST;
-  afeConfig.afe_perferred_core = 0;
-  afeConfig.afe_perferred_priority = 5;
-  afeConfig.afe_ringbuf_size = 50;
+  afeConfig.afe_perferred_core = 0;  //  AFE 运行的 CPU 核 / CPU core preferred by AFE
+  afeConfig.afe_perferred_priority = 5;  //  AFE 任务优先级 / AFE task priority
+  afeConfig.afe_ringbuf_size = 50;  //  AFE 环形缓冲区容量 / AFE ring-buffer capacity
   afeConfig.memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
   afeConfig.agc_mode = AFE_MN_PEAK_AGC_MODE_2;
-  afeConfig.pcm_config.total_ch_num = 1;
-  afeConfig.pcm_config.mic_num = 1;
-  afeConfig.pcm_config.ref_num = 0;
+  afeConfig.pcm_config.total_ch_num = 1;  //  AFE 输入总声道数 / Total AFE input channel count
+  afeConfig.pcm_config.mic_num = 1;  //  麦克风声道数 / Microphone channel count
+  afeConfig.pcm_config.ref_num = 0;  //  参考声道数 / Reference channel count
   afeConfig.pcm_config.sample_rate = static_cast<int>(sampleRateHz);
   afe_config_t* afeConfigPointer = &afeConfig;
 

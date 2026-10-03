@@ -7,13 +7,13 @@
 namespace OmiPetNetwork {
 
 //  配网热点配置 / Provisioning access-point configuration
-constexpr char kProvisioningSsid[] = "OmiPet-Setup";
-constexpr char kProvisioningPassword[] = "omipet123";
-constexpr uint32_t kProvisioningTimeoutSeconds = 180;
-constexpr uint32_t kWifiConnectTimeoutSeconds = 20;
-constexpr uint32_t kInitialWifiConnectWindowMs = 5000;
-constexpr uint32_t kWifiReconnectIntervalMs = 10000;
-constexpr uint32_t kWifiReconnectGracePeriodMs = 60000;
+constexpr char kProvisioningSsid[] = "OmiPet-Setup";  //  配网门户 SoftAP 名称 / Provisioning portal SoftAP name
+constexpr char kProvisioningPassword[] = "omipet123";  //  配网门户 SoftAP 密码 / Provisioning portal SoftAP password
+constexpr uint32_t kProvisioningTimeoutSeconds = 180;  //  配网门户最长运行时间 / Maximum provisioning portal duration
+constexpr uint32_t kWifiConnectTimeoutSeconds = 20;  //  单次 Wi-Fi 连接超时时间 / Timeout for one Wi-Fi connection attempt
+constexpr uint32_t kInitialWifiConnectWindowMs = 5000;  //  启动阶段等待联网的窗口 / Startup window for the initial Wi-Fi connection
+constexpr uint32_t kWifiReconnectIntervalMs = 10000;  //  两次 Wi-Fi 重连尝试之间的间隔 / Interval between Wi-Fi reconnect attempts
+constexpr uint32_t kWifiReconnectGracePeriodMs = 60000;  //  断网后进入配网回退前的宽限时间 / Grace period before provisioning fallback after disconnect
 
 //  WiFiManager 非阻塞配网封装 / Non-blocking WiFiManager provisioning wrapper
 class WifiManagerService {

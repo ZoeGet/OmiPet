@@ -7,8 +7,8 @@
 namespace OmiPetLed {
 
 //  最新原理图映射：LED 网络连接到 ESP32-S3 GPIO47 / Latest schematic mapping: the LED net connects to ESP32-S3 GPIO47
-constexpr uint8_t kDataPin = 47;
-constexpr uint16_t kLedCount = 13; //  原理图中的 LED2 至 LED14 / LED2 through LED14 in the schematic
+constexpr uint8_t kDataPin = 47;  //  WS2812B 数据引脚 / WS2812B data pin
+constexpr uint16_t kLedCount = 13;  //  原理图中的 LED2 至 LED14 / LED2 through LED14 in the schematic
 
 class Strip {
  public:
@@ -16,7 +16,7 @@ class Strip {
   Strip();
 
   //  初始化灯带和亮度 / Initialize the strip and set brightness
-  void begin(uint8_t brightness = 64);
+  void begin(uint8_t brightness = 64);  //  初始全局亮度，范围 0–255 / Initial global brightness from 0 to 255
   //  清空灯带并按需立即刷新 / Clear the strip and optionally refresh immediately
   void clear(bool update = true);
   //  将待发送颜色数据写入灯带 / Send the pending color data to the strip
@@ -50,7 +50,7 @@ class Strip {
 
  private:
   Adafruit_NeoPixel pixels_;
-  uint8_t brightness_ = 64;
+  uint8_t brightness_ = 64;  //  当前灯带全局亮度 / Current global strip brightness
 };
 
 extern Strip strip;

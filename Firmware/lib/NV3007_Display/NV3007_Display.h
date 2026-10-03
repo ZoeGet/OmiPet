@@ -6,19 +6,19 @@
 namespace OmiPetDisplay {
 
 //  屏幕逻辑分辨率 / Logical display resolution
-constexpr uint16_t kPanelWidth = 142;
-constexpr uint16_t kPanelHeight = 428;
+constexpr uint16_t kPanelWidth = 142;  //  LCD 逻辑宽度，单位像素 / LCD logical width in pixels
+constexpr uint16_t kPanelHeight = 428;  //  LCD 逻辑高度，单位像素 / LCD logical height in pixels
 
 //  LCD SPI 和控制引脚 / LCD SPI and control pins
-constexpr uint8_t kMosiPin = 11;
-constexpr uint8_t kSckPin = 12;
-constexpr uint8_t kDcPin = 9;
-constexpr uint8_t kCsPin = 10;
-constexpr uint8_t kResetPin = 14;
-constexpr uint8_t kBacklightPin = 21;
+constexpr uint8_t kMosiPin = 11;  //  LCD SPI MOSI 引脚 / LCD SPI MOSI pin
+constexpr uint8_t kSckPin = 12;  //  LCD SPI SCK 引脚 / LCD SPI SCK pin
+constexpr uint8_t kDcPin = 9;  //  LCD 数据或命令选择引脚 / LCD data-or-command select pin
+constexpr uint8_t kCsPin = 10;  //  LCD SPI 片选引脚 / LCD SPI chip-select pin
+constexpr uint8_t kResetPin = 14;  //  LCD 硬件复位引脚 / LCD hardware-reset pin
+constexpr uint8_t kBacklightPin = 21;  //  LCD 背光控制引脚 / LCD backlight-control pin
 
 //  背光有效电平 / Backlight active level
-constexpr bool kBacklightActiveHigh = true;
+constexpr bool kBacklightActiveHigh = true;  //  背光控制的有效电平 / Active level for backlight control
 
 //  NV3007 四线 SPI 显示驱动 / NV3007 four-wire SPI display driver
 class Display {
@@ -26,7 +26,7 @@ class Display {
   Display();
 
   //  初始化 GPIO、SPI、复位时序和面板寄存器 / Initialize GPIO, SPI, reset timing, and panel registers
-  bool begin(uint32_t frequency = 8000000UL);
+  bool begin(uint32_t frequency = 8000000UL);  //  初始化 SPI 时钟频率，单位 Hz / SPI clock frequency for initialization in Hz
 
   //  设置显示方向 / Set display rotation
   void setRotation(uint8_t rotation);

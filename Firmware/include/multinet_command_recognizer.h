@@ -8,9 +8,9 @@
 namespace OmiPetAudio {
 
 //  命令 ID 是稳定的业务接口；词表中的 ID=1 行是唯一唤醒词配置入口 / Command IDs are stable business interfaces; the ID=1 row in the phrase file is the single wake-phrase configuration entry
-constexpr int kWakePhraseCommandId = 1;
-constexpr int kIncreaseBrightnessCommandId = 2;
-constexpr int kDecreaseBrightnessCommandId = 3;
+constexpr int kWakePhraseCommandId = 1;  //  自定义唤醒词命令 ID / Custom wake-phrase command ID
+constexpr int kIncreaseBrightnessCommandId = 2;  //  增加亮度命令 ID / Increase-brightness command ID
+constexpr int kDecreaseBrightnessCommandId = 3;  //  降低亮度命令 ID / Decrease-brightness command ID
 
 class MultiNetCommandRecognizer {
  public:

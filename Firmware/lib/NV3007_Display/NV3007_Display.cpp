@@ -4,16 +4,16 @@ namespace OmiPetDisplay {
 namespace {
 
 //  NV3007 常用命令 / Common NV3007 commands
-constexpr uint8_t kCommandMemoryAccessControl = 0x36;
-constexpr uint8_t kCommandColumnAddressSet = 0x2A;
-constexpr uint8_t kCommandPageAddressSet = 0x2B;
-constexpr uint8_t kCommandMemoryWrite = 0x2C;
+constexpr uint8_t kCommandMemoryAccessControl = 0x36;  //  MADCTL 显存访问控制命令 / MADCTL memory-access-control command
+constexpr uint8_t kCommandColumnAddressSet = 0x2A;  //  设置显示列地址命令 / Column-address-set command
+constexpr uint8_t kCommandPageAddressSet = 0x2B;  //  设置显示行地址命令 / Page-address-set command
+constexpr uint8_t kCommandMemoryWrite = 0x2C;  //  开始写入显存命令 / Memory-write command
 
 //  各旋转方向对应的 MADCTL 值 / MADCTL values for each rotation
-constexpr uint8_t kMadctlValues[] = {0x00, 0xC0, 0x60, 0xA0};
+constexpr uint8_t kMadctlValues[] = {0x00, 0xC0, 0x60, 0xA0};  //  四种旋转方向的 MADCTL 值 / MADCTL values for the four rotations
 
 //  厂家提供的 NV3007 初始化序列 / NV3007 initialization sequence from the panel vendor
-constexpr Display::InitCommand kInitSequence[] = {
+constexpr Display::InitCommand kInitSequence[] = {  //  厂家提供的面板初始化命令序列 / Vendor-provided panel initialization command sequence
     {0xFF, {0xA5, 0x0, 0x0, 0x0, 0x0}, 1, 0},
     {0x9A, {0x08, 0x0, 0x0, 0x0, 0x0}, 1, 0},
     {0x9B, {0x08, 0x0, 0x0, 0x0, 0x0}, 1, 0},

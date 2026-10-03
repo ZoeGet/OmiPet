@@ -26,11 +26,11 @@ bool Ics43434Mic::begin(uint32_t sampleRateHz, MicChannel channel) {
   config.channel_format = I2S_CHANNEL_FMT_RIGHT_LEFT;
   config.communication_format = I2S_COMM_FORMAT_STAND_I2S;
   config.intr_alloc_flags = ESP_INTR_FLAG_LEVEL1;
-  config.dma_buf_count = 4;
-  config.dma_buf_len = 128;
+  config.dma_buf_count = 4;  //  I2S DMA 缓冲区数量 / Number of I2S DMA buffers
+  config.dma_buf_len = 128;  //  每个 DMA 缓冲区的采样槽数量 / Slot count in each DMA buffer
   config.use_apll = false;
   config.tx_desc_auto_clear = false;
-  config.fixed_mclk = 0;
+  config.fixed_mclk = 0;  //  ICS-43434 不使用 MCLK / ICS-43434 does not use MCLK
 
   const esp_err_t installResult =
       i2s_driver_install(port_, &config, 0, nullptr);
@@ -40,11 +40,11 @@ bool Ics43434Mic::begin(uint32_t sampleRateHz, MicChannel channel) {
   }
 
   i2s_pin_config_t pins = {};
-  pins.mck_io_num = I2S_PIN_NO_CHANGE;
-  pins.bck_io_num = kMicSckPin;
-  pins.ws_io_num = kMicWsPin;
-  pins.data_out_num = I2S_PIN_NO_CHANGE;
-  pins.data_in_num = kMicSdPin;
+  pins.mck_io_num = I2S_PIN_NO_CHANGE;  //  不输出 MCLK / Do not output MCLK
+  pins.bck_io_num = kMicSckPin;  //  连接麦克风 SCK/BCLK / Connect to microphone SCK/BCLK
+  pins.ws_io_num = kMicWsPin;  //  连接麦克风 WS/LRCLK / Connect to microphone WS/LRCLK
+  pins.data_out_num = I2S_PIN_NO_CHANGE;  //  仅使用接收方向，不输出数据 / RX only, no data output
+  pins.data_in_num = kMicSdPin;  //  连接麦克风 SD / Connect to microphone SD
 
   const esp_err_t pinResult = i2s_set_pin(port_, &pins);
   if (pinResult != ESP_OK) {

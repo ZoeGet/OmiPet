@@ -6,11 +6,11 @@
 namespace OmiPetAudio {
 
 //  ICS-43434 硬件引脚映射 / ICS-43434 hardware mapping
-constexpr uint8_t kMicSckPin = 5;
-constexpr uint8_t kMicWsPin = 6;
-constexpr uint8_t kMicSdPin = 7;
-constexpr uint32_t kMicDefaultSampleRateHz = 16000;
-constexpr uint8_t kMicBitsPerSample = 32;
+constexpr uint8_t kMicSckPin = 5;  //  ICS-43434 I2S 位时钟引脚 / ICS-43434 I2S bit-clock pin
+constexpr uint8_t kMicWsPin = 6;  //  ICS-43434 I2S 字选择引脚 / ICS-43434 I2S word-select pin
+constexpr uint8_t kMicSdPin = 7;  //  ICS-43434 I2S 数据输入引脚 / ICS-43434 I2S data-input pin
+constexpr uint32_t kMicDefaultSampleRateHz = 16000;  //  麦克风默认采样率 / Microphone default sample rate
+constexpr uint8_t kMicBitsPerSample = 32;  //  I2S DMA 槽宽 / I2S DMA slot width
 
 //  当前硬件实测有效声道为右声道槽，原始采集保留双声道槽用于验证 / Current hardware testing confirms the right I2S slot; raw capture keeps both slots for validation
 enum class MicChannel : uint8_t {
@@ -24,8 +24,8 @@ class Ics43434Mic {
   Ics43434Mic() = default;
 
   //  使用 32-bit 槽启动 Philips I2S 接收 / Start Philips I2S RX with 32-bit slots
-  bool begin(uint32_t sampleRateHz = kMicDefaultSampleRateHz,
-             MicChannel channel = MicChannel::Right);
+  bool begin(uint32_t sampleRateHz = kMicDefaultSampleRateHz,  //  I2S 采样率，单位 Hz / I2S sample rate in Hz
+             MicChannel channel = MicChannel::Right);  //  使用的左右声道槽 / Selected left-or-right channel slot
 
   //  停止 I2S 外设 / Stop the I2S peripheral
   void end();
