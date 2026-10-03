@@ -2,7 +2,7 @@
 
 OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-S3 为核心，集成竖向彩色 LCD、温湿度传感器、灯带、蜂鸣器和数字麦克风，逐步实现桌面宠物、环境感知和离线语音交互。
 
-> **English** — OmiPet is an open-source desktop companion project built around an ESP32-S3. It combines a vertical color LCD, environmental sensing, addressable LEDs, a buzzer, and an I²S digital microphone, with offline voice interaction planned as the next major milestone.
+> **English** — OmiPet is an open-source desktop companion project built around an ESP32-S3. It combines a vertical color LCD, environmental sensing, addressable LEDs, a buzzer, and an I²S digital microphone with an experimental offline voice interaction path.
 
 ## 项目状态 / Project Status
 
@@ -14,11 +14,11 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 - 无源蜂鸣器驱动。
 - Wi-Fi 异步连接和手机网页配网门户。
 - ICS-43434 原始 I²S 采集、RMS 音量分析、自适应语音活动检测和 16-bit PCM 音频帧适配。
-- ESP-SR v1.2.0 WakeNet `Hi ESP` 首阶段接入骨架和独立模型分区。
+- ESP-SR v1.2.0 中文 MultiNet `mn6_cn` 命令识别、独立模型分区和自定义短语“老鼠狒狒”实验链路。
 
-当前先使用公开的 `Hi ESP` 模型验证完整离线唤醒链路；产品目标唤醒词为“嗨，老鼠”，仍需要对应的定制 WakeNet 模型，不能用 `Hi ESP` 冒充最终唤醒词。
+当前固件不启用 WakeNet，也不把现成唤醒词冒充为产品唤醒词；“老鼠狒狒”通过中文 MultiNet 自定义命令词表作为唤醒入口，仍属于低延迟和误识别特性待继续验证的实验方案。
 
-> **English** — The current firmware includes the display, environmental sensor, LED strip, passive buzzer, Wi-Fi provisioning, verified ICS-43434 I²S capture, and an ESP-SR v1.2.0 WakeNet integration path using the separate model partition. The first validation model is `Hi ESP`; the product target “嗨，老鼠” still requires a matching custom WakeNet model.
+> **English** — The current firmware includes the display, environmental sensor, LED strip, passive buzzer, Wi-Fi provisioning, verified ICS-43434 I²S capture, and an ESP-SR v1.2.0 Chinese MultiNet `mn6_cn` command-recognition path using the separate model partition. WakeNet is disabled; “老鼠狒狒” is registered as a custom MultiNet phrase and remains an experimental wake-entry strategy whose latency and false-trigger behavior still require validation.
 
 ## 功能概览 / Features
 
@@ -72,16 +72,15 @@ OmiPetAudio::microphone.begin(
 - 输出指标：`avg_abs`、`rms`、`peak`、`noise`、`threshold`、`speech`
 
 
-### 语音唤醒状态 / Voice wake state
+### 语音交互状态 / Voice interaction state
 
-当前固件已经准备好 `16 kHz`、`16-bit`、单声道、每帧 `512` 个采样点的唤醒输入，并提供 `IDLE` / `LISTENING` 状态机。产品目标唤醒词为“嗨，老鼠”，但当前仓库没有对应的定制 WakeNet 模型；现阶段仍从独立 `model` SPIFFS 分区加载 `wn9_hiesp`，实际验证词仍是 `Hi ESP`，识别后触发约 `180 ms` 的三段式确认反馈：低音 `1800 Hz/60 ms`、静音 `20 ms`、高音 `2600 Hz/100 ms`。
+当前固件使用 `16 kHz`、`16-bit`、单声道 PCM，将每次 `160` 个采样点的输入帧送入 AFE；AFE 以约 `512` 个采样点的输出帧驱动中文 MultiNet `mn6_cn`。词表包含亮度控制短语和自定义入口“老鼠狒狒”（命令 ID `3`）。识别到入口后，状态机播放约 `180 ms` 的三段式确认反馈，并进入 `LISTENING` 等待“亮一点/暗一点”等自然语言指令。
 
-> **English** — The firmware provides WakeNet-ready `16 kHz`, `16-bit`, mono frames with 512 samples per frame and an `IDLE` / `LISTENING` state machine. The product target wake word is “嗨，老鼠”, but the repository does not yet contain its custom WakeNet model. The current integration loads ESP-SR `wn9_hiesp` from the dedicated `model` SPIFFS partition, so `Hi ESP` remains the validation word until the custom model is delivered.
+AFE 和 I²S 始终持续运行，但 VAD 只在检测到语音以及语音结束后的 `1.2 s` 尾窗内调用 MultiNet；这样避免待机时持续推理造成 CPU 调度和看门狗风险，同时尽量保留词尾。该门控策略不会承诺每次都在说话过程中返回，MultiNet 本身仍可能需要积累判定窗口。
 
+> **English** — The firmware uses `16 kHz`, `16-bit`, mono PCM. It feeds `160`-sample input frames into AFE, which produces approximately `512`-sample frames for Chinese MultiNet `mn6_cn`. The phrase list contains brightness commands and the custom “老鼠狒狒” entry (command ID `3`). After detection, the state machine plays an approximately `180 ms` three-phase acknowledgement and listens for natural-language commands such as “亮一点” or “暗一点”.
 
-当前 `WakeWordDetector` 已接入 ESP-SR v1.2.0 的 WakeNet API，并从独立 `model` SPIFFS 分区加载 `wn9_hiesp`。启动日志会显示目标唤醒词与当前实际模型词，避免把目标配置误认为已经完成模型切换。如果模型分区、模型文件或运行时初始化失败，后端会保持 `unavailable`，不会将普通 VAD 或声音误判为唤醒词。
-
-> **English** — `WakeWordDetector` now calls the ESP-SR v1.2.0 WakeNet API and loads `wn9_hiesp` from the dedicated `model` SPIFFS partition. Startup logs distinguish the requested product wake word from the active model word. If the partition, model files, or runtime initialization is unavailable, the backend remains `unavailable`; ordinary speech is never treated as a wake word.
+I²S and AFE remain active continuously, while VAD gates MultiNet detection to speech activity plus a `1.2 s` hangover. This reduces idle inference load and watchdog risk while preserving phrase endings; it does not guarantee that MultiNet returns before the speaker finishes a phrase.
 
 确认音播放期间以及结束后的 200 ms 内，VAD 会暂时抑制语音状态更新，但 I²S/PCM 仍持续采集，避免蜂鸣器回采触发语音开始事件。
 
@@ -162,12 +161,12 @@ AHT20 上电初期的读数通常接近环境值。随着 ESP32-S3、LCD 背光�
 - [x] ICS-43434 原始 I²S 采集 / Raw ICS-43434 I²S capture
 - [x] 音量统计和基础语音活动检测 / Level statistics and basic speech activity detection
 - [x] 16-bit PCM 音频帧适配 / 16-bit PCM audio frame adaptation
+- [x] VAD 门控的 AFE/MultiNet 语音链路 / VAD-gated AFE/MultiNet voice pipeline
+- [x] “老鼠狒狒”自定义短语入口 / Custom “老鼠狒狒” phrase entry
 - [x] 唤醒后双音反馈状态机 / Post-wake dual-tone feedback state machine
-- [ ] WakeNet/ESP-SR 模型组件和模型分区 / WakeNet/ESP-SR model component and model partition
-- [ ] 更稳健的 VAD / Robust VAD
-- [ ] “嗨，老鼠”定制离线唤醒词 / Custom offline “嗨，老鼠” wake word
-- [ ] 自然语言指令解析 / Natural-language command parsing
-- [ ] 语音驱动的设备动作 / Voice-controlled device actions
+- [x] MultiNet 自然语言亮度指令 / MultiNet natural-language brightness commands
+- [ ] 降低 MultiNet 判定窗口延迟 / Reduce MultiNet decision-window latency
+- [ ] 扩展语音驱动的设备动作 / Expand voice-controlled device actions
 
 ## 贡献与代码规范 / Contributing and Code Style
 
