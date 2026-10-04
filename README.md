@@ -14,6 +14,7 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 - 灯带常亮颜色、彩虹、呼吸、左右往返扫描和中心扩散回收动效，并支持离线语音切换。
 - 无源蜂鸣器驱动。
 - Wi-Fi 异步连接和手机网页配网门户。
+- Wi-Fi 连接后通过 NTP 获取本地时间和日期；断网时显示占位符，不使用编译时间或假时间。
 - ICS-43434 原始 I²S 采集、RMS 音量分析、自适应语音活动检测和 16-bit PCM 音频帧适配。
 - ESP-SR v1.2.0 中文 MultiNet `mn6_cn` 命令识别、独立模型分区和自定义短语“老鼠狒狒”实验链路。
 
@@ -32,6 +33,7 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 | 蜂鸣器 / Buzzer | 无源磁式蜂鸣器，GPIO4 控制 / Passive magnetic buzzer on GPIO4 |
 | 麦克风 / Microphone | ICS-43434，I²S，GPIO5/6/7 |
 | 配网 / Provisioning | WiFiManager 手机网页配网 / WiFiManager captive portal |
+| 时间 / Time | NTP 联网校时，默认 UTC+8；离线显示 `--:--` 和 `----/--/--` / NTP time sync, UTC+8 default; placeholders offline |
 
 ## 麦克风与 I²S / Microphone and I²S
 
@@ -236,12 +238,15 @@ ESP32-S3 使用原生 USB CDC 输出串口日志。当前运行状态可以通�
 
 ```text
 [SYS] alive ms=... mic=ok wifi=offline
+[TIME] NTP synchronized 2026-10-04 12:34
 [MIC] frames=800 avg_abs=... rms=... peak=... noise=... threshold=... speech=no
 ```
 
 当对着麦克风说话时，`rms` 和 `peak` 应明显上升，并可能出现 `speech=yes`。
 
 首次没有保存 Wi-Fi 配置时，设备会启动配网热点并显示门户地址；使用手机连接热点后，在网页中选择附近 Wi-Fi 并填写密码即可完成配网。
+
+联网后固件通过 `ntp.aliyun.com`、`pool.ntp.org` 和 `time.nist.gov` 获取时间，按 UTC+8 显示。只有 Wi-Fi 已连接且 NTP 已同步时才显示时间；Wi-Fi 断开或 NTP 尚未同步时，时间显示为 `--:--`，日期显示为 `----/--/--`，不会回退到编译时间。
 
 ## 温湿度补偿说明 / Sensor Compensation
 
@@ -258,6 +263,7 @@ AHT20 上电初期的读数通常接近环境值。随着 ESP32-S3、LCD 背光�
 - [x] WS2812B 灯带驱动 / WS2812B strip driver
 - [x] 无源蜂鸣器驱动 / Passive buzzer driver
 - [x] Wi-Fi 网页配网 / Wi-Fi captive-portal provisioning
+- [x] 联网 NTP 时间和日期显示 / Network NTP time and date display
 - [x] ICS-43434 原始 I²S 采集 / Raw ICS-43434 I²S capture
 - [x] 音量统计和基础语音活动检测 / Level statistics and basic speech activity detection
 - [x] 16-bit PCM 音频帧适配 / 16-bit PCM audio frame adaptation

@@ -23,6 +23,7 @@ constexpr Glyph kFont[] = {  //  内置 ASCII 5×7 字模表 / Built-in ASCII 5x
     {' ', {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}},
     {'-', {0x00, 0x00, 0x00, 0x1F, 0x00, 0x00, 0x00}},
     {':', {0x00, 0x04, 0x04, 0x00, 0x04, 0x04, 0x00}},
+    {'/', {0x01, 0x01, 0x02, 0x04, 0x08, 0x10, 0x10}},
     {'.', {0x00, 0x00, 0x00, 0x00, 0x00, 0x06, 0x06}},
     {'%', {0x19, 0x19, 0x02, 0x04, 0x08, 0x13, 0x13}},
     {'0', {0x0E, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0E}},
@@ -87,10 +88,15 @@ constexpr int16_t kCenterCardWidth =
     kSideCardRight - kCenterCardLeft - 6;
 constexpr int16_t kCenterCardHeight = kScreenHeight - kTopCardY * 2;
 constexpr int16_t kCardRadius = 9;
-uint32_t gClockStartMillis = 0;
-uint32_t gClockBaseSeconds = 0;
 char gRenderedClockText[6] = {};
-bool gClockRendered = false;
+char gRenderedDateText[11] = {};
+bool gDateTimeRendered = false;
+bool gDateTimeValid = false;
+int gDateTimeYear = 0;
+int gDateTimeMonth = 0;
+int gDateTimeDay = 0;
+int gDateTimeHour = 0;
+int gDateTimeMinute = 0;
 bool gUiStarted = false;
 bool gEnvironmentValid = false;
 float gTemperatureC = 0.0F;
@@ -162,45 +168,55 @@ void drawCenteredTextInArea(int16_t left, int16_t width, int16_t y,
            backgroundColor);
 }
 
-//  把编译时间转换为启动时钟的初始秒数 / Convert the compile time into initial clock seconds
-uint32_t compileTimeSeconds() {
-  const char* time = __TIME__;
-  const uint32_t hours = static_cast<uint32_t>(time[0] - '0') * 10U +
-                         static_cast<uint32_t>(time[1] - '0');
-  const uint32_t minutes = static_cast<uint32_t>(time[3] - '0') * 10U +
-                           static_cast<uint32_t>(time[4] - '0');
-  const uint32_t seconds = static_cast<uint32_t>(time[6] - '0') * 10U +
-                           static_cast<uint32_t>(time[7] - '0');
-  return hours * 3600U + minutes * 60U + seconds;
+//  根据同步状态格式化时间和日期文本 / Format time and date text from synchronization state
+void formatDateTimeTexts(char* clockText, size_t clockTextSize, char* dateText,
+                         size_t dateTextSize) {
+  if (!gDateTimeValid) {
+    std::snprintf(clockText, clockTextSize, "--:--");
+    std::snprintf(dateText, dateTextSize, "----/--/--");
+    return;
+  }
+
+  std::snprintf(clockText, clockTextSize, "%02d:%02d", gDateTimeHour,
+                gDateTimeMinute);
+  std::snprintf(dateText, dateTextSize, "%04d/%02d/%02d", gDateTimeYear,
+                gDateTimeMonth, gDateTimeDay);
 }
 
-//  根据启动时间计算当前显示的时钟秒数 / Calculate the current display time from the boot time
-uint32_t currentClockSeconds() {
-  const uint32_t elapsedSeconds = (millis() - gClockStartMillis) / 1000U;
-  return (gClockBaseSeconds + elapsedSeconds) % (24U * 60U * 60U);
+//  更新一行文本，只重绘发生变化的字符 / Update one line and redraw only changed characters
+void drawChangedText(int16_t x, int16_t y, const char* text, uint8_t scale,
+                     char* renderedText, size_t renderedTextSize,
+                     uint16_t color, bool rendered) {
+  for (size_t index = 0; text[index] != '\0'; ++index) {
+    if (!rendered || text[index] != renderedText[index]) {
+      char changedCharacter[2] = {text[index], '\0'};
+      drawText(x + static_cast<int16_t>(index * 6U * scale), y,
+               changedCharacter, scale, color, kBackground);
+    }
+  }
+  std::strncpy(renderedText, text, renderedTextSize - 1U);
+  renderedText[renderedTextSize - 1U] = '\0';
 }
 
-//  更新时钟文本，只重绘发生变化的数字 / Update the clock text and redraw only changed digits
-void drawClock(uint32_t seconds) {
-  char clockText[12] = {};
-  const uint32_t hours = seconds / 3600U;
-  const uint32_t minutes = (seconds / 60U) % 60U;
-  std::snprintf(clockText, sizeof(clockText), "%02lu:%02lu",
-                static_cast<unsigned long>(hours),
-                static_cast<unsigned long>(minutes));
+//  更新时间和日期，只重绘发生变化的字符 / Update time and date, redrawing only changed characters
+void drawDateTime() {
+  char clockText[6] = {};
+  char dateText[11] = {};
+  formatDateTimeTexts(clockText, sizeof(clockText), dateText, sizeof(dateText));
   constexpr uint8_t kClockScale = 4;
   constexpr int16_t kClockY = 53;
   const int16_t clockX = kCenterCardLeft +
       (kCenterCardWidth - textWidth(clockText, kClockScale)) / 2;
-  for (size_t index = 0; clockText[index] != '\0'; ++index) {
-    if (!gClockRendered || clockText[index] != gRenderedClockText[index]) {
-      char changedCharacter[2] = {clockText[index], '\0'};
-      drawText(clockX + static_cast<int16_t>(index * 6U * kClockScale),
-               kClockY, changedCharacter, kClockScale, kWhite, kBackground);
-    }
-  }
-  std::strncpy(gRenderedClockText, clockText, sizeof(gRenderedClockText) - 1U);
-  gClockRendered = true;
+  drawChangedText(clockX, kClockY, clockText, kClockScale, gRenderedClockText,
+                  sizeof(gRenderedClockText), kWhite, gDateTimeRendered);
+
+  constexpr uint8_t kDateScale = 1;
+  constexpr int16_t kDateY = 104;
+  const int16_t dateX = kCenterCardLeft +
+      (kCenterCardWidth - textWidth(dateText, kDateScale)) / 2;
+  drawChangedText(dateX, kDateY, dateText, kDateScale, gRenderedDateText,
+                  sizeof(gRenderedDateText), kWhite, gDateTimeRendered);
+  gDateTimeRendered = true;
 }
 
 //  把摄氏温度格式化为带一位小数的屏幕文本 / Format Celsius temperature as one-decimal display text
@@ -341,9 +357,7 @@ void drawStaticUi() {
                   kCenterCardHeight, "", kAccent);
   drawCenteredTextInArea(kCenterCardLeft, kCenterCardWidth, 19, "OMIPET", 1,
                          kAccent, kBackground);
-  drawClock(currentClockSeconds());
-  drawCenteredTextInArea(kCenterCardLeft, kCenterCardWidth, 104, __DATE__, 1,
-                         kWhite, kBackground);
+  drawDateTime();
 
   drawEnvironment();
   drawNetworkStatus(true);
@@ -354,9 +368,7 @@ void drawStaticUi() {
 
 //  初始化界面时钟、静态布局和首帧内容 / Initialize the UI clock, static layout, and first frame
 void begin() {
-  gClockStartMillis = millis();
-  gClockBaseSeconds = compileTimeSeconds();
-  gClockRendered = false;
+  gDateTimeRendered = false;
   drawStaticUi();
   gUiStarted = true;
 }
@@ -405,6 +417,28 @@ void setNetworkStatus(bool connected, bool provisioning, const char* ssid) {
   }
 }
 
+//  保存联网时间和日期，仅在显示内容变化时刷新 / Store network time and date and refresh only when the display changes
+void setDateTime(bool valid, int year, int month, int day, int hour,
+                 int minute) {
+  const bool changed =
+      gDateTimeValid != valid || gDateTimeYear != year ||
+      gDateTimeMonth != month || gDateTimeDay != day ||
+      gDateTimeHour != hour || gDateTimeMinute != minute;
+  if (!changed) {
+    return;
+  }
+
+  gDateTimeValid = valid;
+  gDateTimeYear = year;
+  gDateTimeMonth = month;
+  gDateTimeDay = day;
+  gDateTimeHour = hour;
+  gDateTimeMinute = minute;
+  if (gUiStarted) {
+    drawDateTime();
+  }
+}
+
 //  保存语音状态文本，仅在文本变化时刷新屏幕 / Store voice-status text and refresh only when it changes
 void setVoiceStatus(const char* statusText) {
   if (statusText == nullptr || std::strcmp(gVoiceStatus, statusText) == 0) {
@@ -416,18 +450,8 @@ void setVoiceStatus(const char* statusText) {
     drawVoiceStatus(false);
   }
 }
-//  仅在显示时间变化时刷新数字 / Refresh clock digits only when displayed time changes
+//  保留 UI 更新入口，时间内容由联网时间状态驱动 / Keep the UI update entry point driven by network time state
 void update() {
-  const uint32_t seconds = currentClockSeconds();
-  char clockText[12] = {};
-  const uint32_t hours = seconds / 3600U;
-  const uint32_t minutes = (seconds / 60U) % 60U;
-  std::snprintf(clockText, sizeof(clockText), "%02lu:%02lu",
-                static_cast<unsigned long>(hours),
-                static_cast<unsigned long>(minutes));
-  if (gClockRendered && std::strcmp(clockText, gRenderedClockText) == 0) {
-    return;
-  }
-  drawClock(seconds);
+  drawDateTime();
 }
 }  //  OmiPetUi 命名空间 / OmiPetUi namespace

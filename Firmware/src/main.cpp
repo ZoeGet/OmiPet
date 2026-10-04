@@ -7,6 +7,7 @@
 #include "NV3007_Display.h"
 #include "led_controller.h"
 #include "omi_pet_ui.h"
+#include "time_service.h"
 #include "wifi_manager.h"
 
 //  OmiPet 固件主循环和模块编排 / OmiPet firmware entry point and module orchestration
@@ -461,12 +462,20 @@ void setup() {
   OmiPetUi::setEnvironment(initialReading.temperatureC,
                            initialReading.humidityPercent,
                            initialReading.valid && !initialReading.stale);
+  //  初始化联网时间服务，未同步前显示占位符 / Initialize network time service and show placeholders until synchronized
+  OmiPetTime::ntp.begin();
+  OmiPetUi::setDateTime(false, 0, 0, 0, 0, 0);
   //  先绘制界面，再执行可能等待 Wi-Fi 的连接流程 / Draw the UI before starting the potentially waiting Wi-Fi connection flow
   OmiPetUi::setNetworkStatus(false, false, nullptr);
   OmiPetUi::begin();
 
   //  初始化 Wi-Fi；无已保存配置时开启网页配网热点 / Initialize Wi-Fi; start the web portal when no saved configuration exists
   OmiPetNetwork::wifi.begin();
+  OmiPetTime::ntp.update(OmiPetNetwork::wifi.connected());
+  const OmiPetTime::DateTime initialDateTime = OmiPetTime::ntp.current();
+  OmiPetUi::setDateTime(initialDateTime.valid, initialDateTime.year,
+                        initialDateTime.month, initialDateTime.day,
+                        initialDateTime.hour, initialDateTime.minute);
   const String initialWifiSsid = OmiPetNetwork::wifi.ssid();
   OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
                              OmiPetNetwork::wifi.provisioning(),
@@ -493,6 +502,12 @@ void setup() {
 void loop() {
   //  处理 WiFiManager 网页配网和连接状态 / Process WiFiManager provisioning and connection state
   OmiPetNetwork::wifi.update();
+  const bool wifiConnected = OmiPetNetwork::wifi.connected();
+  OmiPetTime::ntp.update(wifiConnected);
+  const OmiPetTime::DateTime currentDateTime = OmiPetTime::ntp.current();
+  OmiPetUi::setDateTime(currentDateTime.valid, currentDateTime.year,
+                        currentDateTime.month, currentDateTime.day,
+                        currentDateTime.hour, currentDateTime.minute);
   //  先推进灯效，避免语音识别处理占用主循环时延后动画刷新 / Advance effects first so speech processing delays animation refresh less
   OmiPetLed::effects.update();
   updateSystemHeartbeat();

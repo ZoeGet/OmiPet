@@ -8,6 +8,7 @@ set(OMIPET_SOURCES
     "multinet_command_recognizer.cpp"
     "omi_pet_ui.cpp"
     "pcm_audio_frame_buffer.cpp"
+    "time_service.cpp"
     "voice_controller.cpp"
     "wifi_manager.cpp"
     "../lib/NV3007_Display/NV3007_Display.cpp"
