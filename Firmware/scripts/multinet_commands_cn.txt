@@ -9,3 +9,25 @@
 3 jiang di liang du
 3 ba deng tiao an
 3 deng tai liang le diao an
+4 hong se
+4 ba deng bian hong
+5 lv se
+5 ba deng bian lv
+6 lan se
+6 ba deng bian lan
+7 huang se
+8 zi se
+9 qing se
+10 bai se
+11 cai hong
+11 cai hong deng
+12 hu xi deng
+12 hu xi deng guang
+13 zhui zhu deng
+13 pao ma deng
+14 chang liang
+14 jing tai deng
+15 guan bi deng
+15 guan deng
+16 zhong xin kuo san deng
+16 cong zhong jian xiang wai

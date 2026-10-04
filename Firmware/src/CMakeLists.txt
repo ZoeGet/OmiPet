@@ -4,7 +4,7 @@ set(OMIPET_SOURCES
     "aht20_sensor.cpp"
     "buzzer.cpp"
     "ics43434_mic.cpp"
-    "led_strip.cpp"
+    "led_controller.cpp"
     "multinet_command_recognizer.cpp"
     "omi_pet_ui.cpp"
     "pcm_audio_frame_buffer.cpp"

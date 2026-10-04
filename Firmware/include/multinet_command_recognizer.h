@@ -11,6 +11,19 @@ namespace OmiPetAudio {
 constexpr int kWakePhraseCommandId = 1;  //  自定义唤醒词命令 ID / Custom wake-phrase command ID
 constexpr int kIncreaseBrightnessCommandId = 2;  //  增加亮度命令 ID / Increase-brightness command ID
 constexpr int kDecreaseBrightnessCommandId = 3;  //  降低亮度命令 ID / Decrease-brightness command ID
+constexpr int kRedColorCommandId = 4;  //  红色命令 ID / Red color command ID
+constexpr int kGreenColorCommandId = 5;  //  绿色命令 ID / Green color command ID
+constexpr int kBlueColorCommandId = 6;  //  蓝色命令 ID / Blue color command ID
+constexpr int kYellowColorCommandId = 7;  //  黄色命令 ID / Yellow color command ID
+constexpr int kPurpleColorCommandId = 8;  //  紫色命令 ID / Purple color command ID
+constexpr int kCyanColorCommandId = 9;  //  青色命令 ID / Cyan color command ID
+constexpr int kWhiteColorCommandId = 10;  //  白色命令 ID / White color command ID
+constexpr int kRainbowEffectCommandId = 11;  //  彩虹动效命令 ID / Rainbow effect command ID
+constexpr int kBreatheEffectCommandId = 12;  //  呼吸动效命令 ID / Breathing effect command ID
+constexpr int kSweepEffectCommandId = 13;  //  左右扫描动效命令 ID / Left-to-right sweep effect command ID
+constexpr int kSolidEffectCommandId = 14;  //  常亮动效命令 ID / Solid effect command ID
+constexpr int kOffEffectCommandId = 15;  //  关闭灯带命令 ID / Turn-off command ID
+constexpr int kCenterExpandEffectCommandId = 16;  //  中心扩散动效命令 ID / Center-expand effect command ID
 
 class MultiNetCommandRecognizer {
  public:

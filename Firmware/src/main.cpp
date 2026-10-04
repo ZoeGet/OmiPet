@@ -5,7 +5,7 @@
 #include "aht20_sensor.h"
 #include "buzzer.h"
 #include "NV3007_Display.h"
-#include "led_strip.h"
+#include "led_controller.h"
 #include "omi_pet_ui.h"
 #include "wifi_manager.h"
 
@@ -23,9 +23,7 @@ constexpr size_t kMicDiagnosticFrameCount = 160;  //  每个麦克风诊断窗�
 constexpr size_t kMicDiagnosticWordCount = kMicDiagnosticFrameCount * 2;  //  双声道原始槽的样本字数量 / Raw sample words for both channel slots
 constexpr uint32_t kMicWindowIntervalMs = 10;  //  麦克风诊断窗口处理间隔 / Microphone diagnostic-window interval
 constexpr uint32_t kMicLogIntervalMs = 1000;  //  麦克风诊断日志输出间隔 / Microphone diagnostic log interval
-//  语音结束后保留一段 MultiNet 检测尾窗，避免漏掉词尾 / Keep a MultiNet detection hangover after speech to avoid missing phrase endings
 constexpr uint32_t kSpeechDetectionHangoverMs = 1200;  //  语音结束后继续允许 MultiNet 检测的尾窗时间 / MultiNet detection hangover after speech ends
-//  限制单次主循环处理的音频帧数，避免识别任务长期占满 CPU / Limit frames processed per loop so recognition cannot monopolize the CPU
 constexpr size_t kMaxCommandFramesPerLoop = 4;  //  单次主循环最多处理的命令音频帧数 / Maximum command audio frames processed per loop
 constexpr uint32_t kMinimumSpeechStartRms = 10000;  //  从静音进入语音状态的最小 RMS / Minimum RMS to start speech state
 constexpr uint32_t kMinimumSpeechHoldRms = 5000;  //  保持语音状态的最小 RMS / Minimum RMS to hold speech state
@@ -65,6 +63,87 @@ uint32_t gSpeechStartAtMs = 0;  //  当前语音片段开始时间 / Start time 
 uint32_t gSpeechStopAtMs = 0;  //  当前语音片段结束时间 / End time of the current speech segment
 uint32_t gWakeAcceptedAtMs = 0;  //  最近一次唤醒被状态机接受的时间 / Time when the latest wake was accepted
 bool gSpeechTimingValid = false;  //  当前语音时间戳是否有效 / Whether current speech timestamps are valid
+
+//  执行一个已识别的灯带命令 / Execute one recognized LED command
+bool executeLedCommand(int commandId) {
+  using namespace OmiPetAudio;
+  switch (commandId) {
+    case kIncreaseBrightnessCommandId: {
+      const int updatedBrightness = std::max(
+          0, std::min(static_cast<int>(OmiPetLed::strip.brightness()) + 16,
+                      255));
+      OmiPetLed::strip.setBrightness(static_cast<uint8_t>(updatedBrightness));
+      OmiPetLed::strip.show();
+      Serial.printf("[LED] brightness=%d command=increase\n",
+                    updatedBrightness);
+      return true;
+    }
+    case kDecreaseBrightnessCommandId: {
+      const int updatedBrightness = std::max(
+          0, std::min(static_cast<int>(OmiPetLed::strip.brightness()) - 16,
+                      255));
+      OmiPetLed::strip.setBrightness(static_cast<uint8_t>(updatedBrightness));
+      OmiPetLed::strip.show();
+      Serial.printf("[LED] brightness=%d command=decrease\n",
+                    updatedBrightness);
+      return true;
+    }
+    case kRedColorCommandId:
+      OmiPetLed::effects.setSolid(255, 0, 0);
+      Serial.println("[LED] color=red");
+      return true;
+    case kGreenColorCommandId:
+      OmiPetLed::effects.setSolid(0, 255, 0);
+      Serial.println("[LED] color=green");
+      return true;
+    case kBlueColorCommandId:
+      OmiPetLed::effects.setSolid(0, 0, 255);
+      Serial.println("[LED] color=blue");
+      return true;
+    case kYellowColorCommandId:
+      OmiPetLed::effects.setSolid(255, 160, 0);
+      Serial.println("[LED] color=yellow");
+      return true;
+    case kPurpleColorCommandId:
+      OmiPetLed::effects.setSolid(180, 0, 255);
+      Serial.println("[LED] color=purple");
+      return true;
+    case kCyanColorCommandId:
+      OmiPetLed::effects.setSolid(0, 220, 255);
+      Serial.println("[LED] color=cyan");
+      return true;
+    case kWhiteColorCommandId:
+      OmiPetLed::effects.setSolid(255, 255, 255);
+      Serial.println("[LED] color=white");
+      return true;
+    case kRainbowEffectCommandId:
+      OmiPetLed::effects.setRainbow();
+      Serial.println("[LED] effect=rainbow");
+      return true;
+    case kBreatheEffectCommandId:
+      OmiPetLed::effects.setBreathe();
+      Serial.println("[LED] effect=breathe");
+      return true;
+    case kSweepEffectCommandId:
+      OmiPetLed::effects.setSweep();
+      Serial.println("[LED] effect=sweep");
+      return true;
+    case kCenterExpandEffectCommandId:
+      OmiPetLed::effects.setCenterExpand();
+      Serial.println("[LED] effect=center_expand");
+      return true;
+    case kSolidEffectCommandId:
+      OmiPetLed::effects.setSolid();
+      Serial.println("[LED] effect=solid");
+      return true;
+    case kOffEffectCommandId:
+      OmiPetLed::effects.setOff();
+      Serial.println("[LED] effect=off");
+      return true;
+    default:
+      return false;
+  }
+}
 
 //  计算选定声道的音量统计 / Calculate level statistics for the selected channel
 MicLevelStats analyzeMicrophoneLevel(const int32_t* words, size_t wordCount,
@@ -280,10 +359,10 @@ void updateCommandAudioFrames() {
       }
       continue;
     }
-    //  唤醒后只接受有限的亮度命令 ID，执行成功后回到持续监听 / After wake-up accept only brightness command IDs, then return to continuous listening
-    if ((commandId == OmiPetAudio::kIncreaseBrightnessCommandId ||
-         commandId == OmiPetAudio::kDecreaseBrightnessCommandId) &&
-        OmiPetVoice::voice.listeningForCommand()) {
+    //  唤醒后接受灯带控制命令，执行成功后回到持续监听 / Accept LED commands after wake-up, then return to continuous listening
+    if (OmiPetVoice::voice.listeningForCommand() &&
+        commandId >= OmiPetAudio::kIncreaseBrightnessCommandId &&
+        commandId <= OmiPetAudio::kCenterExpandEffectCommandId) {
       const uint32_t speechAgeMs =
           gSpeechTimingValid ? detectFinishedAtMs - gSpeechStartAtMs : 0U;
       const uint32_t wakeAgeMs = gWakeAcceptedAtMs != 0U
@@ -296,17 +375,10 @@ void updateCommandAudioFrames() {
           static_cast<unsigned long>(detectFinishedAtMs - detectStartedAtMs),
           static_cast<unsigned long>(speechAgeMs),
           static_cast<unsigned long>(wakeAgeMs));
-      const int currentBrightness = OmiPetLed::strip.brightness();
-      const int brightnessStep =
-          commandId == OmiPetAudio::kIncreaseBrightnessCommandId ? 16 : -16;
-      const int updatedBrightness = std::max(
-          0, std::min(currentBrightness + brightnessStep, 255));
-      OmiPetLed::strip.setBrightness(static_cast<uint8_t>(updatedBrightness));
-      OmiPetLed::strip.show();
-      Serial.printf("[LED] brightness=%d command=%s\n", updatedBrightness,
-                    commandId == OmiPetAudio::kIncreaseBrightnessCommandId
-                        ? "increase"
-                        : "decrease");
+      const bool executed = executeLedCommand(commandId);
+      if (!executed) {
+        continue;
+      }
       Serial.printf("[TIMING] command_executed ms=%lu detect_to_led_ms=%lu\n",
                     static_cast<unsigned long>(millis()),
                     static_cast<unsigned long>(millis() - detectFinishedAtMs));
@@ -366,9 +438,10 @@ void setup() {
   Serial.println("[BOOT] setup entered");
   Serial.flush();
 
-  //  初始化灯带并保持低亮度白光 / Initialize the LED strip and keep low-brightness white light
+  //  初始化灯带和非阻塞动效 / Initialize the strip and non-blocking effects
   OmiPetLed::strip.begin(16);
-  OmiPetLed::strip.fill(255, 255, 255);
+  OmiPetLed::effects.begin();
+  OmiPetLed::effects.setSolid(255, 255, 255);
 
   //  初始化无源蜂鸣器，但不自动播放声音 / Initialize the passive buzzer without playing sound automatically
   OmiPetBuzzer::buzzer.begin();
@@ -422,6 +495,7 @@ void loop() {
   updateMicrophoneDiagnostic();
   updateCommandAudioFrames();
   updateVoiceDebugInput();
+  OmiPetLed::effects.update();
   const bool wasListeningForCommand =
       OmiPetVoice::voice.listeningForCommand();
   OmiPetVoice::voice.update(gSpeechActive);
