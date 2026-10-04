@@ -487,15 +487,16 @@ void setup() {
                 static_cast<unsigned>(OmiPetAudio::kPcmAudioFrameSamples));
 }
 
-//  按固定顺序执行非阻塞更新：网络、采集、识别、传感器和 UI / Run non-blocking updates in order: network, capture, recognition, sensors, and UI
+//  按固定顺序执行非阻塞更新：网络、灯效、采集、识别、传感器和 UI / Run non-blocking updates in order: network, effects, capture, recognition, sensors, and UI
 void loop() {
   //  处理 WiFiManager 网页配网和连接状态 / Process WiFiManager provisioning and connection state
   OmiPetNetwork::wifi.update();
+  //  先推进灯效，避免语音识别处理占用主循环时延后动画刷新 / Advance effects first so speech processing delays animation refresh less
+  OmiPetLed::effects.update();
   updateSystemHeartbeat();
   updateMicrophoneDiagnostic();
   updateCommandAudioFrames();
   updateVoiceDebugInput();
-  OmiPetLed::effects.update();
   const bool wasListeningForCommand =
       OmiPetVoice::voice.listeningForCommand();
   OmiPetVoice::voice.update(gSpeechActive);

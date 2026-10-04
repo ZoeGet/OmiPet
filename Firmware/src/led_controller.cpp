@@ -20,7 +20,9 @@ constexpr uint32_t kCenterExpandCycleMs = 4200;
 //  余弦函数的数学常量 / Mathematical constants used by cosine easing
 constexpr float kPi = 3.14159265358979323846F;
 constexpr float kTwoPi = 2.0F * kPi;
-//  保留极低的基础亮度，让非焦点灯珠不会完全突兀熄灭 / Keep a very low ambient level so non-focus pixels do not turn off abruptly
+//  普通动画灯珠保持约 22% 的基础亮度，移动高光只在此基础上叠加 / Keep animated pixels at about 22% base brightness and add the moving highlight on top
+constexpr float kAnimatedBaseGlow = 0.22F;
+//  亮度计算的最低保底值，避免数值取整后完全熄灭 / Minimum level used to prevent rounding from turning a pixel completely off
 constexpr uint8_t kAmbientLevel = 7;
 
 //  将数值限制到 0.0 到 1.0，避免浮点误差导致亮度越界 / Clamp a value to 0.0 through 1.0 to prevent brightness overflow
@@ -46,11 +48,31 @@ uint8_t levelFromGlow(float glow) {
   return static_cast<uint8_t>(std::lround(level));
 }
 
+//  在固定底光上叠加高光；高光消失时仍返回基础亮度 / Add a highlight over fixed base light; return the base level even when the highlight fades
+uint8_t levelFromHighlight(float highlight) {
+  const float base = clampUnit(kAnimatedBaseGlow);
+  const float combinedGlow = base + (1.0F - base) * clampUnit(highlight);
+  return levelFromGlow(combinedGlow);
+}
+
 //  按亮度比例缩放一个 RGB 分量，不改变当前动画的颜色色相 / Scale one RGB component without changing the animation's selected hue
 uint8_t scaleComponent(uint8_t component, uint8_t level) {
   return static_cast<uint8_t>(
       (static_cast<uint16_t>(component) * level) / 255U);
 }
+
+//  呼吸灯使用蓝紫色，给出柔和但有层次的冷色氛围 / Use blue-purple for breathing to create a soft layered cool-color atmosphere
+constexpr uint8_t kBreatheRed = 92;
+constexpr uint8_t kBreatheGreen = 24;
+constexpr uint8_t kBreatheBlue = 255;
+//  左右移动高光使用青色，运动边缘更清晰 / Use cyan for the left-right highlight so its movement is easy to see
+constexpr uint8_t kSweepRed = 0;
+constexpr uint8_t kSweepGreen = 220;
+constexpr uint8_t kSweepBlue = 255;
+//  中心扩散使用粉紫色，突出从中心向外展开的光环 / Use pink-purple for the center ring to emphasize outward expansion
+constexpr uint8_t kCenterExpandRed = 255;
+constexpr uint8_t kCenterExpandGreen = 40;
+constexpr uint8_t kCenterExpandBlue = 190;
 
 }  //  匿名命名空间 / Anonymous namespace
 
@@ -274,8 +296,10 @@ void EffectController::renderBreathe(uint32_t elapsedMs) {
   //  计算整体亮度波形，并保留少量基础亮度 / Calculate overall brightness and retain a small ambient level
   const float wave = 0.5F - 0.5F * std::cos(kTwoPi * phase);
   const uint8_t level = levelFromGlow(0.04F + wave * 0.96F);
-  strip_.fill(scaleComponent(red_, level), scaleComponent(green_, level),
-              scaleComponent(blue_, level));
+  //  呼吸动效固定使用蓝紫色，不继承上一次常亮颜色 / Breathing uses a fixed blue-purple color instead of inheriting the previous solid color
+  strip_.fill(scaleComponent(kBreatheRed, level),
+              scaleComponent(kBreatheGreen, level),
+              scaleComponent(kBreatheBlue, level));
 }
 
 void EffectController::renderSweep(uint32_t elapsedMs) {
@@ -286,14 +310,16 @@ void EffectController::renderSweep(uint32_t elapsedMs) {
   const float position = static_cast<float>(kLedCount - 1U) * 0.5F *
                          (1.0F - std::cos(kTwoPi * phase));
   for (uint16_t index = 0; index < kLedCount; ++index) {
-    //  当前灯珠距离光点越近越亮，距离越远越暗 / LEDs closer to the moving point are brighter, and farther LEDs are dimmer
+    //  当前灯珠距离光点越近，叠加的高光越强；远离光点也保留固定底光 / LEDs closer to the moving point receive a stronger highlight; distant LEDs keep fixed base light
     const float distance = std::fabs(static_cast<float>(index) - position);
     //  core 控制亮斑，halo 扩大柔和范围；两者取较大值避免出现断层 / core controls the highlight and halo widens the softness; max avoids visible gaps
     const float core = cosineFalloff(distance, 1.8F);
     const float halo = cosineFalloff(distance, 4.6F) * 0.34F;
-    const uint8_t level = levelFromGlow(std::max(core, halo));
-    strip_.setPixel(index, scaleComponent(red_, level),
-                    scaleComponent(green_, level), scaleComponent(blue_, level));
+    const uint8_t level = levelFromHighlight(std::max(core, halo));
+    //  左右追逐固定使用青色，所有灯保留青色底光，光点经过时只会变亮 / Sweep uses fixed cyan; every LED keeps cyan base light and only brightens as the point passes
+    strip_.setPixel(index, scaleComponent(kSweepRed, level),
+                    scaleComponent(kSweepGreen, level),
+                    scaleComponent(kSweepBlue, level));
   }
   strip_.show();
 }
@@ -312,12 +338,14 @@ void EffectController::renderCenterExpand(uint32_t elapsedMs) {
     const float distanceFromCenter =
         std::fabs(static_cast<float>(index) - center);
     const float ringDistance = std::fabs(distanceFromCenter - radius);
-    //  同时叠加核心光环和外围光晕，避免扩散边缘生硬 / Combine a bright ring with a wider halo for a soft expansion edge
+    //  同时叠加核心光环和外围光晕，且始终保留固定底光 / Combine a bright ring with a wider halo while always retaining fixed base light
     const float core = cosineFalloff(ringDistance, 1.25F);
     const float halo = cosineFalloff(ringDistance, 3.8F) * 0.34F;
-    const uint8_t level = levelFromGlow(std::max(core, halo));
-    strip_.setPixel(index, scaleComponent(red_, level),
-                    scaleComponent(green_, level), scaleComponent(blue_, level));
+    const uint8_t level = levelFromHighlight(std::max(core, halo));
+    //  中心扩散固定使用粉紫色，中心和边缘都不会因动画位置变化而熄灭 / Center expansion uses fixed pink-purple; center and edge never turn off as the ring moves
+    strip_.setPixel(index, scaleComponent(kCenterExpandRed, level),
+                    scaleComponent(kCenterExpandGreen, level),
+                    scaleComponent(kCenterExpandBlue, level));
   }
   strip_.show();
 }

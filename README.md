@@ -79,9 +79,9 @@ OmiPetAudio::microphone.begin(
 
 ### 灯带颜色与动效 / LED Colors and Effects
 
-唤醒后说出颜色或动效命令即可切换灯带。颜色命令会进入常亮模式；彩虹、呼吸、左右往返扫描、中心扩散回收动效由主循环以非阻塞方式推进，使用约 `16 ms` 的时间驱动帧和余弦缓动曲线，避免整数步进造成卡顿。当前命令包括：红、绿、蓝、黄、紫、青、白；彩虹、呼吸灯、左右扫描、中心扩散；常亮和关闭。亮度命令仍以 `16/255` 为步长调整全局亮度，并作用于当前颜色或动效。
+唤醒后说出颜色或动效命令即可切换灯带。颜色命令会进入常亮模式；RGB 灯、呼吸灯、跑马灯、扩散灯等动效由主循环以非阻塞方式推进，使用约 `16 ms` 的时间驱动帧和余弦缓动曲线，避免整数步进造成卡顿。动效都有自己的彩色灯光：呼吸灯是蓝紫色，跑马灯是青色，扩散灯是粉紫色，且移动过程中保留全灯带底光，只在光点经过时叠加高光。支持的动效说法包括“RGB”“RGB 灯”“彩色”“彩色灯光”“彩色灯”“呼吸灯”“跑马灯”“扩散灯”；颜色命令支持“红色灯光/红色灯”等表达；还支持“开灯”“开启灯光”“一直亮”“关灯”和“关闭灯光”。亮度命令仍以 `16/255` 为步长调整全局亮度，“调亮一点/调暗一点”中的“调”使用拼音 `tiao`。
 
-> **English** — After the custom wake entry, speak a color or effect command to control the strip. Color commands select a solid color; rainbow, breathing, left-to-right sweep, and center-expand effects advance non-blockingly from the main loop. Supported colors are red, green, blue, yellow, purple, cyan, and white; supported effects are rainbow, breathing, sweep, center-expand, solid, and off. Brightness commands still adjust global brightness in `16/255` steps.
+> **English** — After the custom wake entry, use the configured names RGB, RGB lights, colorful lights, breathing lights, running lights, or expanding lights. Each effect has its own color: blue-purple breathing, cyan running lights, and pink-purple expanding lights. The running and expanding effects keep a colored base light on every pixel and add a brighter moving highlight. The brightness commands use `tiao` for 调, as in `tiao liang yi dian` and `tiao an yi dian`.
 
 AFE 和 I²S 始终持续运行，但 VAD 只在检测到语音以及语音结束后的 `1.2 s` 尾窗内调用 MultiNet；这样避免待机时持续推理造成 CPU 调度和看门狗风险，同时尽量保留词尾。该门控策略不会承诺每次都在说话过程中返回，MultiNet 本身仍可能需要积累判定窗口。
 
