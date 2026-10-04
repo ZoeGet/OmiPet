@@ -11,6 +11,7 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 - NV3007 `142 × 428` LCD 基础驱动和桌面宠物 UI。
 - AHT20 温湿度采集、CRC 校验和整机热影响补偿。
 - `13` 颗 WS2812B-2020-V6 灯带驱动。
+- 灯带常亮颜色、彩虹、呼吸、左右往返扫描和中心扩散回收动效，并支持离线语音切换。
 - 无源蜂鸣器驱动。
 - Wi-Fi 异步连接和手机网页配网门户。
 - ICS-43434 原始 I²S 采集、RMS 音量分析、自适应语音活动检测和 16-bit PCM 音频帧适配。
@@ -74,7 +75,13 @@ OmiPetAudio::microphone.begin(
 
 ### 语音交互状态 / Voice interaction state
 
-当前固件使用 `16 kHz`、`16-bit`、单声道 PCM，将每次 `160` 个采样点的输入帧送入 AFE；AFE 以约 `512` 个采样点的输出帧驱动中文 MultiNet `mn6_cn`。词表包含亮度控制短语和自定义入口“老鼠狒狒”（命令 ID `1`）。识别到入口后，状态机播放约 `180 ms` 的三段式确认反馈，并进入 `LISTENING` 等待“亮一点/暗一点”等自然语言指令。
+当前固件使用 `16 kHz`、`16-bit`、单声道 PCM，将每次 `160` 个采样点的输入帧送入 AFE；AFE 以约 `512` 个采样点的输出帧驱动中文 MultiNet `mn6_cn`。词表包含灯带颜色/动效、亮度控制短语和自定义入口“老鼠狒狒”（命令 ID `1`）。识别到入口后，状态机播放约 `180 ms` 的三段式确认反馈，并进入 `LISTENING` 等待灯带控制指令。
+
+### 灯带颜色与动效 / LED Colors and Effects
+
+唤醒后说出颜色或动效命令即可切换灯带。颜色命令会进入常亮模式；彩虹、呼吸、左右往返扫描、中心扩散回收动效由主循环以非阻塞方式推进，使用约 `16 ms` 的时间驱动帧和余弦缓动曲线，避免整数步进造成卡顿。当前命令包括：红、绿、蓝、黄、紫、青、白；彩虹、呼吸灯、左右扫描、中心扩散；常亮和关闭。亮度命令仍以 `16/255` 为步长调整全局亮度，并作用于当前颜色或动效。
+
+> **English** — After the custom wake entry, speak a color or effect command to control the strip. Color commands select a solid color; rainbow, breathing, left-to-right sweep, and center-expand effects advance non-blockingly from the main loop. Supported colors are red, green, blue, yellow, purple, cyan, and white; supported effects are rainbow, breathing, sweep, center-expand, solid, and off. Brightness commands still adjust global brightness in `16/255` steps.
 
 AFE 和 I²S 始终持续运行，但 VAD 只在检测到语音以及语音结束后的 `1.2 s` 尾窗内调用 MultiNet；这样避免待机时持续推理造成 CPU 调度和看门狗风险，同时尽量保留词尾。该门控策略不会承诺每次都在说话过程中返回，MultiNet 本身仍可能需要积累判定窗口。
 
@@ -136,7 +143,7 @@ I²S、PCM 队列和 AFE 会持续运行，但 MultiNet 只在检测到语音活
 1 lao shu fei fei
 ```
 
-这条词表位于 `Firmware/scripts/multinet_commands_cn.txt`。构建前，`Firmware/scripts/generate_model.py` 会调用 ESP-SR 的模型整理脚本，再把主仓库词表复制到 `target/fst/commands_cn.txt`，最后生成并烧录 `model` 分区镜像。运行时，`Firmware/src/multinet_command_recognizer.cpp` 也会通过 ESP-SR 的命令词 API 注册同一组拼音和命令 ID。
+个人配置位于 `Firmware/include/voice_command_config.h`。构建前，`Firmware/scripts/generate_model.py` 会先解析这个文件，将全部命令同步到 `Firmware/scripts/multinet_commands_cn.txt`，再把词表复制到 `target/fst/commands_cn.txt`，生成并加入 PlatformIO 的 `model` 分区镜像。运行时，`Firmware/src/multinet_command_recognizer.cpp` 会通过 ESP-SR 的命令词 API 注册同一组拼音和命令 ID，因此应用固件与模型使用同一份配置。
 
 识别到命令 ID `1` 后，主循环将它解释为自定义唤醒入口：
 
@@ -146,13 +153,13 @@ I²S、PCM 队列和 AFE 会持续运行，但 MultiNet 只在检测到语音活
 4. 在超时时间内等待 ID `2` 或 ID `3`；
 5. 按 ID `2/3` 将亮度增加或降低 `16/255`，然后回到持续监听。
 
-命令词的唯一修改入口是 `Firmware/scripts/multinet_commands_cn.txt`：保留 ID `1`，只需修改该行的拼音短语即可更换唤醒词。构建前的一致性检查会校验 ID、重复短语和运行时常量，并自动生成被忽略的 `Firmware/include/generated_multinet_commands.h`；不要直接修改生成文件。
+命令词的唯一修改入口是 `Firmware/include/voice_command_config.h`。修改或新增数组项即可维护唤醒词、同义表达和后续命令；不要直接修改同步后的 `Firmware/scripts/multinet_commands_cn.txt`，也不要修改自动生成的 `Firmware/include/generated_multinet_commands.h`。构建检查会拒绝空配置、重复短语、非正 ID、非法拼音、超过 MultiNet 长度/数量上限的配置，并确保 ID `1/2/3` 仍然存在且 ID `1` 只有一条。
 
-更换步骤：修改 ID `1` 行的无声调拼音 → 重新构建 → 将应用固件和模型分区一起烧录 → 查看 `[ASR] continuous experiment wake_id=1 phrase=...` 日志并实测。当前是构建时配置入口，不是设备运行中的热修改接口；新短语仍需通过 MultiNet 注册并验证识别效果，不保证任意短语都能稳定识别。
+更换或新增步骤：编辑 `Firmware/include/voice_command_config.h` → 修改/增加 `{命令ID, "无声调拼音"}` → 重新构建 → PlatformIO 自动同步词表、生成运行时表并把 `model.bin` 加入烧录列表 → 将应用固件和模型分区一起烧录 → 查看 `[ASR] continuous experiment wake_id=1 phrase=...` 日志并实测。新增命令词会自动注册，但要让设备执行新的业务动作，还必须在 `Firmware/src/main.cpp` 中为该命令 ID 增加业务分派；配置入口不会凭空生成未实现的业务逻辑。
 
 因此，“唤醒词”在当前固件中准确的技术名称是：**MultiNet 自定义命令词入口**，而不是独立的 WakeNet 唤醒模型。
 
-> **English** — “老鼠狒狒” is not a WakeNet model name and is not presented as an official wake word. It is registered as the custom Chinese MultiNet phrase `lao shu fei fei` with command ID `1`. After ID `1` is detected, the firmware enters `LISTENING`, plays a non-blocking acknowledgement, waits for brightness command IDs `2` or `3`, applies a `16/255` brightness step, and returns to continuous listening. The only phrase-editing entry point is `Firmware/scripts/multinet_commands_cn.txt`; the build check generates the runtime header automatically. Changing the tone-free pinyin requires rebuilding and reflashing both the application and the model partition, followed by recognition testing; it is not a runtime setting and arbitrary phrases are not guaranteed to work reliably. The accurate technical description is **a MultiNet custom command entry used as an experimental wake trigger**, not a standalone WakeNet model.
+> **English** — “老鼠狒狒” is not a WakeNet model name and is not presented as an official wake word. It is registered as the custom Chinese MultiNet phrase `lao shu fei fei` with command ID `1`. The personal configuration entry is `Firmware/include/voice_command_config.h`; the build synchronizes every configured phrase to the model input, validates limits and IDs, generates the runtime table, and adds the model image to the PlatformIO flash list. New phrases are registered automatically, but a new command ID still needs a corresponding business handler in `Firmware/src/main.cpp`. Changing the tone-free pinyin requires rebuilding and reflashing both the application and the model partition, followed by recognition testing; it is not a runtime setting and arbitrary phrases are not guaranteed to work reliably. The accurate technical description is **a MultiNet custom command entry used as an experimental wake trigger**, not a standalone WakeNet model.
 
 ### 为什么不用现成 WakeNet / Why the supplied WakeNet model is not used
 
@@ -171,8 +178,10 @@ WakeNet 是专门的唤醒模型，但当前 ESP-SR 模型包中的现成模型�
 - `Firmware/src/CMakeLists.txt`：注册固件源文件并声明 `esp-sr` 组件依赖。
 - `Firmware/sdkconfig.defaults`：启用 AFE、中文 MultiNet、模型分区、16 MB Flash 和 OPI PSRAM，并明确关闭 WakeNet。
 - `Firmware/components/esp-sr`：ESP-SR v1.2.0 子模块，提供 AFE/MultiNet 头文件、库和模型工具。
-- `Firmware/scripts/multinet_commands_cn.txt`：项目自有的中文拼音命令词表，是唤醒词和亮度命令的唯一源文件；ID `1` 为唤醒词，ID `2/3` 为增亮/减亮。
-- `Firmware/scripts/check_multinet_commands.py`：构建前校验命令 ID、重复短语和运行时常量，并生成 `Firmware/include/generated_multinet_commands.h`。
+- `Firmware/include/voice_command_config.h`：个人语音命令配置入口；集中维护命令 ID 和无声调拼音短语，ID `1` 为唤醒词，ID `2/3` 为亮度，ID `4–16` 为颜色和动效。
+- `Firmware/include/led_controller.h`、`Firmware/src/led_controller.cpp`：分离的 WS2812B 硬件缓存 `Strip` 和非阻塞动画控制器 `EffectController`。
+- `Firmware/scripts/check_multinet_commands.py`：构建前解析个人配置、同步词表、校验命令 ID/重复短语/容量，并生成 `Firmware/include/generated_multinet_commands.h`。
+- `Firmware/scripts/multinet_commands_cn.txt`：由构建流程从个人配置自动同步的 MultiNet 词表，不是推荐的手动编辑入口。
 - `Firmware/scripts/generate_model.py`：将 ESP-SR 模型和项目词表打包成 `model.bin`，并将其加入 PlatformIO 烧录流程。
 
 这些文件共同组成当前语音架构；不能因为没有使用 WakeNet 就删除 `CMakeLists.txt`、`sdkconfig.defaults` 或整个 `esp-sr` 目录。
