@@ -79,6 +79,7 @@ constexpr uint8_t kCenterExpandBlue = 190;
 //  创建底层 NeoPixel 对象：13 颗灯、GPIO47、GRB 顺序、800 kHz 协议 / Create the NeoPixel object: 13 LEDs, GPIO47, GRB order, and 800 kHz protocol
 Strip::Strip() : pixels_(kLedCount, kDataPin, NEO_GRB + NEO_KHZ800) {}
 
+//  初始化 WS2812B 外设并设置全局亮度 / Initialize the WS2812B peripheral and set global brightness
 void Strip::begin(uint8_t brightness) {
   //  初始化 NeoPixel 外设并设置全局亮度；全局亮度由库在发送时统一缩放 / Initialize NeoPixel and set global brightness; the library scales output during transmission
   pixels_.begin();
@@ -88,6 +89,7 @@ void Strip::begin(uint8_t brightness) {
   show();
 }
 
+//  清空灯珠缓存，并按参数决定是否立即发送 / Clear the pixel buffer and optionally transmit immediately
 void Strip::clear(bool update) {
   //  clear() 只修改 RAM 缓存；update=true 时才立即把黑帧发送到灯带 / clear() changes only the RAM buffer; update=true also immediately sends the black frame
   pixels_.clear();
@@ -96,19 +98,23 @@ void Strip::clear(bool update) {
   }
 }
 
+//  把当前缓存发送到灯带硬件 / Transmit the current buffer to the strip hardware
 void Strip::show() {
   //  将当前缓存一次性发送给 WS2812B；动画每帧只在这里真正更新硬件 / Transmit the complete buffer to WS2812B; this is the only hardware update per animation frame
   pixels_.show();
 }
 
+//  更新 NeoPixel 库使用的全局亮度 / Update the global brightness used by NeoPixel
 void Strip::setBrightness(uint8_t brightness) {
   //  这是整条灯带的全局亮度，不会改变动画保存的 RGB 颜色 / This is strip-wide brightness and does not change the RGB color stored by the animation
   brightness_ = brightness;
   pixels_.setBrightness(brightness_);
 }
 
+//  返回当前全局亮度值 / Return the current global brightness value
 uint8_t Strip::brightness() const { return brightness_; }
 
+//  按 RGB 分量写入一个灯珠缓存 / Write one pixel's RGB components to the buffer
 void Strip::setPixel(uint16_t index, uint8_t red, uint8_t green,
                      uint8_t blue) {
   //  先写入缓存，不在单颗灯珠更新时发送；调用方完成整帧后再 show() / Write the buffer without transmitting; the caller calls show() after building the whole frame
@@ -117,6 +123,7 @@ void Strip::setPixel(uint16_t index, uint8_t red, uint8_t green,
   }
 }
 
+//  按打包颜色值写入一个灯珠 / Write one pixel using a packed color value
 void Strip::setPixel(uint16_t index, uint32_t colorValue) {
   //  允许动画直接写入 NeoPixel 打包颜色 / Allow effects to write a packed NeoPixel color directly
   if (index < kLedCount) {
@@ -124,11 +131,13 @@ void Strip::setPixel(uint16_t index, uint32_t colorValue) {
   }
 }
 
+//  用 RGB 分量填充整条灯带 / Fill the entire strip with RGB components
 void Strip::fill(uint8_t red, uint8_t green, uint8_t blue, bool update) {
   //  RGB 版本先转换为库使用的打包颜色，再复用统一的填充实现 / Convert RGB to the library's packed color and reuse the common fill implementation
   fill(color(red, green, blue), update);
 }
 
+//  用打包颜色值填充整条灯带 / Fill the entire strip with a packed color
 void Strip::fill(uint32_t colorValue, bool update) {
   //  一次填满全部 LED；动画需要逐颗渐变时使用 setPixel() / Fill all LEDs at once; use setPixel() when per-pixel gradients are needed
   pixels_.fill(colorValue, 0, kLedCount);
@@ -137,6 +146,7 @@ void Strip::fill(uint32_t colorValue, bool update) {
   }
 }
 
+//  使用 HSV 参数设置一个灯珠，便于按色相生成动画 / Set one pixel from HSV values for hue-based effects
 void Strip::setPixelHSV(uint16_t index, uint8_t hue, uint8_t saturation,
                         uint8_t value) {
   //  HSV 更适合彩虹动画：只改变 hue 就能连续移动色相 / HSV suits rainbow animation because changing hue alone moves the color continuously
@@ -146,11 +156,13 @@ void Strip::setPixelHSV(uint16_t index, uint8_t hue, uint8_t saturation,
   }
 }
 
+//  把 RGB 分量转换成 NeoPixel 使用的打包颜色值 / Pack RGB components into a NeoPixel color value
 uint32_t Strip::color(uint8_t red, uint8_t green, uint8_t blue) const {
   //  使用 Adafruit_NeoPixel 的颜色打包方式，避免手动处理 GRB 顺序 / Use Adafruit_NeoPixel packing to avoid manually handling GRB byte order
   return pixels_.Color(red, green, blue);
 }
 
+//  根据 0 到 255 的位置生成一圈彩虹色 / Generate a rainbow color from a 0-to-255 wheel position
 uint32_t Strip::colorWheel(uint8_t position) const {
   //  把 0 到 255 的位置映射为红、绿、蓝连续过渡的颜色 / Map position 0 through 255 to a continuous red-green-blue color transition
   position = 255 - position;
@@ -168,6 +180,7 @@ uint32_t Strip::colorWheel(uint8_t position) const {
 //  动画控制器只保存状态，并通过引用操作 Strip，不直接拥有硬件对象 / The effect controller stores state and operates on Strip by reference without owning hardware
 EffectController::EffectController(Strip& strip) : strip_(strip) {}
 
+//  初始化动效控制器并立即显示当前模式 / Initialize the effect controller and render the current mode
 void EffectController::begin() {
   //  记录初始化时间；之后每个模式都用相对时间计算位置和亮度 / Record initialization time; each mode uses relative time for position and brightness
   initialized_ = true;
@@ -175,6 +188,7 @@ void EffectController::begin() {
   lastFrameAtMs_ = 0;
 }
 
+//  根据时间推进动画，并限制灯带刷新帧率 / Advance the animation by time and limit strip refresh rate
 void EffectController::update() {
   //  常亮和关闭没有时间变化，不需要每次 loop() 重复发送 / Solid and off modes do not change over time and need no repeated loop transmission
   if (!initialized_ || mode_ == EffectMode::Solid || mode_ == EffectMode::Off) {
@@ -184,6 +198,7 @@ void EffectController::update() {
   render(millis(), false);
 }
 
+//  切换到指定 RGB 颜色的常亮模式 / Switch to solid mode with the requested RGB color
 void EffectController::setSolid(uint8_t red, uint8_t green, uint8_t blue) {
   //  保存基础颜色；呼吸、扫描和扩散都以这组 RGB 为颜色来源 / Store the base color used by breathing, sweep, and expansion effects
   red_ = red;
@@ -192,44 +207,52 @@ void EffectController::setSolid(uint8_t red, uint8_t green, uint8_t blue) {
   setSolid();
 }
 
+//  使用最近一次保存的常亮颜色 / Use the most recently saved solid color
 void EffectController::setSolid() {
   //  切换模式后立即绘制一帧，让语音命令无需等待下一次 loop() / Render immediately after switching so a voice command does not wait for the next loop
   selectMode(EffectMode::Solid);
   render(millis(), true);
 }
 
+//  切换到连续循环的彩虹动效 / Switch to the continuously cycling rainbow effect
 void EffectController::setRainbow() {
   //  彩虹模式沿用当前亮度，但每颗灯使用不同的色相偏移 / Rainbow mode uses current brightness with a hue offset for each LED
   selectMode(EffectMode::Rainbow);
   render(millis(), true);
 }
 
+//  切换到蓝紫色呼吸动效 / Switch to the blue-purple breathing effect
 void EffectController::setBreathe() {
   //  呼吸模式沿用当前颜色，只随时间改变整体亮度 / Breathing mode keeps the current color and changes only overall brightness over time
   selectMode(EffectMode::Breathe);
   render(millis(), true);
 }
 
+//  切换到带固定底光的左右追逐动效 / Switch to the left-right sweep with fixed base light
 void EffectController::setSweep() {
   //  扫描模式创建一个从左到右、再从右到左移动的柔和光点 / Sweep mode creates a soft light point moving left-to-right and back
   selectMode(EffectMode::Sweep);
   render(millis(), true);
 }
 
+//  切换到带固定底光的中心向外扩散动效 / Switch to the center-out expansion with fixed base light
 void EffectController::setCenterExpand() {
   //  中心扩散模式创建一个从中心向两侧展开、再收回的光环 / Center-expand mode creates a ring expanding from center to both sides and returning
   selectMode(EffectMode::CenterExpand);
   render(millis(), true);
 }
 
+//  切换到关灯模式并立即发送黑帧 / Switch to off mode and send a black frame immediately
 void EffectController::setOff() {
   //  关闭模式会清空缓存并发送黑帧 / Off mode clears the buffer and sends a black frame
   selectMode(EffectMode::Off);
   render(millis(), true);
 }
 
+//  返回当前动效模式 / Return the current effect mode
 EffectMode EffectController::mode() const { return mode_; }
 
+//  保存新模式并重置动画起始时间 / Store the new mode and reset its animation start time
 void EffectController::selectMode(EffectMode mode) {
   //  每次切换模式都从 0 ms 重新开始，避免新动画接着旧动画的半途位置运行 / Restart each timeline at 0 ms so a new effect does not inherit the old effect's midpoint
   mode_ = mode;
@@ -237,6 +260,7 @@ void EffectController::selectMode(EffectMode mode) {
   lastFrameAtMs_ = 0;
 }
 
+//  根据当前模式选择具体渲染函数 / Dispatch rendering to the function for the current mode
 void EffectController::render(uint32_t nowMs, bool force) {
   //  非强制渲染遵守 16 ms 帧间隔；无论 loop() 多快，都不会过度发送数据 / Non-forced rendering obeys the 16 ms interval and avoids excessive bus traffic regardless of loop speed
   if (!force && nowMs - lastFrameAtMs_ < kFrameIntervalMs) {
@@ -269,11 +293,13 @@ void EffectController::render(uint32_t nowMs, bool force) {
   }
 }
 
+//  渲染所有灯珠保持同一颜色的常亮画面 / Render a frame with one solid color on every pixel
 void EffectController::renderSolid() {
   //  常亮模式把当前 RGB 写入整条缓存并发送 / Fill the complete buffer with the current RGB and transmit it
   strip_.fill(red_, green_, blue_);
 }
 
+//  根据经过时间计算每颗灯珠的彩虹色并发送 / Compute time-based rainbow colors for all pixels and send the frame
 void EffectController::renderRainbow(uint32_t elapsedMs) {
   //  将经过时间折算为 0.0 到 1.0 的循环相位 / Convert elapsed time into a looping phase from 0.0 through 1.0
   const float phase = static_cast<float>(elapsedMs % kRainbowCycleMs) /
@@ -289,6 +315,7 @@ void EffectController::renderRainbow(uint32_t elapsedMs) {
   strip_.show();
 }
 
+//  用平滑曲线改变蓝紫色亮度，形成完整呼吸周期 / Modulate blue-purple brightness with a smooth full breathing cycle
 void EffectController::renderBreathe(uint32_t elapsedMs) {
   //  相位从 0 到 1 循环；余弦波让亮度在最高点和最低点都平滑停留 / Loop phase from 0 to 1; cosine keeps brightness smooth at both extremes
   const float phase = static_cast<float>(elapsedMs % kBreatheCycleMs) /
@@ -302,6 +329,7 @@ void EffectController::renderBreathe(uint32_t elapsedMs) {
               scaleComponent(kBreatheBlue, level));
 }
 
+//  让柔和高光从左向右再返回，同时保留整条底光 / Move a soft highlight left and right while keeping the strip base-lit
 void EffectController::renderSweep(uint32_t elapsedMs) {
   //  把时间转换为往返相位：0 和 1 都在最左端，0.5 在最右端 / Convert time to a ping-pong phase: 0 and 1 are left, while 0.5 is right
   const float phase = static_cast<float>(elapsedMs % kSweepCycleMs) /
@@ -324,6 +352,7 @@ void EffectController::renderSweep(uint32_t elapsedMs) {
   strip_.show();
 }
 
+//  让粉紫色光环从中心扩散到边缘再返回，并保留固定底光 / Expand a pink-purple ring from center to edge and back with base light
 void EffectController::renderCenterExpand(uint32_t elapsedMs) {
   //  计算中心对称的动画相位，中心和最外侧分别对应半径 0 和最大半径 / Calculate a center-symmetric phase where radius 0 is center and maximum radius is the edge
   const float phase = static_cast<float>(elapsedMs % kCenterExpandCycleMs) /
@@ -350,6 +379,7 @@ void EffectController::renderCenterExpand(uint32_t elapsedMs) {
   strip_.show();
 }
 
+//  清空缓存并发送黑帧，确保灯带真正熄灭 / Clear the buffer and transmit black so the strip is actually off
 void EffectController::renderOff() {
   //  先清理缓存，再发送黑帧，确保灯珠实际熄灭 / Clear the buffer first, then transmit a black frame so the LEDs actually turn off
   strip_.clear(false);
@@ -361,7 +391,9 @@ Strip strip;
 EffectController effects(strip);
 
 //  暴露底层对象给需要读取 NeoPixel 状态的调试代码 / Expose the underlying object to diagnostic code that needs NeoPixel state
+//  返回可修改的底层 NeoPixel 对象 / Return the mutable underlying NeoPixel object
 Adafruit_NeoPixel& Strip::pixels() { return pixels_; }
+//  返回只读的底层 NeoPixel 对象 / Return the read-only underlying NeoPixel object
 const Adafruit_NeoPixel& Strip::pixels() const { return pixels_; }
 
 }  //  OmiPetLed 命名空间 / OmiPetLed namespace

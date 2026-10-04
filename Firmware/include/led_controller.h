@@ -88,13 +88,21 @@ class EffectController {
   EffectMode mode() const;
 
  private:
+  //  根据模式选择对应的渲染函数 / Select the renderer for the current mode
   void selectMode(EffectMode mode);
+  //  判断是否需要刷新，并按模式绘制当前时间点的画面 / Decide whether to refresh and render the current time point
   void render(uint32_t nowMs, bool force);
+  //  绘制常亮颜色 / Render the solid color frame
   void renderSolid();
+  //  绘制彩虹循环帧 / Render one rainbow frame
   void renderRainbow(uint32_t elapsedMs);
+  //  绘制呼吸亮度帧 / Render one breathing-brightness frame
   void renderBreathe(uint32_t elapsedMs);
+  //  绘制左右往返追逐帧 / Render one left-right sweep frame
   void renderSweep(uint32_t elapsedMs);
+  //  绘制中心向外扩散帧 / Render one center-expansion frame
   void renderCenterExpand(uint32_t elapsedMs);
+  //  绘制全黑帧 / Render one fully-off frame
   void renderOff();
 
   Strip& strip_;  //  动画写入的硬件缓存 / Hardware buffer written by animation
