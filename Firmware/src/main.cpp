@@ -89,31 +89,31 @@ bool executeLedCommand(int commandId) {
       return true;
     }
     case kRedColorCommandId:
-      OmiPetLed::effects.setSolid(255, 0, 0);
+      OmiPetLed::effects.setColor(255, 0, 0);
       Serial.println("[LED] color=red");
       return true;
     case kGreenColorCommandId:
-      OmiPetLed::effects.setSolid(0, 255, 0);
+      OmiPetLed::effects.setColor(0, 255, 0);
       Serial.println("[LED] color=green");
       return true;
     case kBlueColorCommandId:
-      OmiPetLed::effects.setSolid(0, 0, 255);
+      OmiPetLed::effects.setColor(0, 0, 255);
       Serial.println("[LED] color=blue");
       return true;
     case kYellowColorCommandId:
-      OmiPetLed::effects.setSolid(255, 160, 0);
+      OmiPetLed::effects.setColor(255, 160, 0);
       Serial.println("[LED] color=yellow");
       return true;
     case kPurpleColorCommandId:
-      OmiPetLed::effects.setSolid(180, 0, 255);
+      OmiPetLed::effects.setColor(180, 0, 255);
       Serial.println("[LED] color=purple");
       return true;
     case kCyanColorCommandId:
-      OmiPetLed::effects.setSolid(0, 220, 255);
+      OmiPetLed::effects.setColor(0, 220, 255);
       Serial.println("[LED] color=cyan");
       return true;
     case kWhiteColorCommandId:
-      OmiPetLed::effects.setSolid(255, 255, 255);
+      OmiPetLed::effects.setColor(255, 255, 255);
       Serial.println("[LED] color=white");
       return true;
     case kRainbowEffectCommandId:

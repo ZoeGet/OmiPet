@@ -74,6 +74,8 @@ class EffectController {
   void setSolid(uint8_t red, uint8_t green, uint8_t blue);
   //  用当前颜色切换到常亮 / Switch to solid mode using current color
   void setSolid();
+  //  修改当前颜色但保留正在运行的动效；彩虹和关灯模式不立即改变画面 / Change the current color without leaving the active effect; rainbow and off keep their frame
+  void setColor(uint8_t red, uint8_t green, uint8_t blue);
   //  设置彩虹动效 / Set rainbow effect
   void setRainbow();
   //  设置全灯带呼吸动效 / Set whole-strip breathing effect

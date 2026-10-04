@@ -7,8 +7,8 @@ namespace OmiPetLed {
 namespace {
 
 //  所有动画参数集中放在这里，便于调节速度、柔和度和最低亮度 / Keep animation tuning parameters together for speed, softness, and minimum brightness
-//  每 16 ms 最多发送一帧，约等于 60 FPS；动画不依赖 loop() 执行次数 / Send at most one frame every 16 ms, about 60 FPS; animation does not depend on loop count
-constexpr uint32_t kFrameIntervalMs = 16;
+//  每 12 ms 最多发送一帧，约等于 83 FPS；动画不依赖 loop() 执行次数 / Send at most one frame every 12 ms, about 83 FPS; animation does not depend on loop count
+constexpr uint32_t kFrameIntervalMs = 12;
 //  彩虹颜色完成一整圈所需的时间 / Time required for the rainbow hue to complete one full cycle
 constexpr uint32_t kRainbowCycleMs = 7200;
 //  呼吸灯从暗到亮再回到暗的完整周期 / Full breathing cycle from dim to bright and back to dim
@@ -20,10 +20,27 @@ constexpr uint32_t kCenterExpandCycleMs = 4200;
 //  余弦函数的数学常量 / Mathematical constants used by cosine easing
 constexpr float kPi = 3.14159265358979323846F;
 constexpr float kTwoPi = 2.0F * kPi;
-//  普通动画灯珠保持约 22% 的基础亮度，移动高光只在此基础上叠加 / Keep animated pixels at about 22% base brightness and add the moving highlight on top
+//  中心扩散灯环保留约 22% 的基础亮度，移动高光只在此基础上叠加 / Keep about 22% base brightness for the center ring and add the moving highlight on top
 constexpr float kAnimatedBaseGlow = 0.22F;
+//  跑马灯远离高光时仍保留约 10% 亮度，但整条灯带会形成连续渐变 / Keep about 10% brightness away from the sweep highlight for a continuous gradient
+constexpr float kSweepMinimumGlow = 0.10F;
+//  跑马灯渐变覆盖范围，范围越大，亮暗过渡越宽 / Sweep gradient radius; a larger radius makes the bright-to-dim transition wider
+constexpr float kSweepGradientRadius = 7.2F;
 //  亮度计算的最低保底值，避免数值取整后完全熄灭 / Minimum level used to prevent rounding from turning a pixel completely off
 constexpr uint8_t kAmbientLevel = 7;
+
+//  呼吸灯默认使用纯蓝色；动画只改变亮度，不混入其他颜色 / Use pure blue for breathing by default; animation changes brightness only
+constexpr uint8_t kBreatheRed = 0;
+constexpr uint8_t kBreatheGreen = 0;
+constexpr uint8_t kBreatheBlue = 255;
+//  跑马灯默认使用纯绿色；动画只改变亮度，不混入其他颜色 / Use pure green for sweep by default; animation changes brightness only
+constexpr uint8_t kSweepRed = 0;
+constexpr uint8_t kSweepGreen = 255;
+constexpr uint8_t kSweepBlue = 0;
+//  扩散灯默认使用纯红色；动画只改变亮度，不混入其他颜色 / Use pure red for center expansion by default; animation changes brightness only
+constexpr uint8_t kCenterExpandRed = 255;
+constexpr uint8_t kCenterExpandGreen = 0;
+constexpr uint8_t kCenterExpandBlue = 0;
 
 //  将数值限制到 0.0 到 1.0，避免浮点误差导致亮度越界 / Clamp a value to 0.0 through 1.0 to prevent brightness overflow
 float clampUnit(float value) {
@@ -55,24 +72,22 @@ uint8_t levelFromHighlight(float highlight) {
   return levelFromGlow(combinedGlow);
 }
 
-//  按亮度比例缩放一个 RGB 分量，不改变当前动画的颜色色相 / Scale one RGB component without changing the animation's selected hue
+//  按亮度比例缩放一个 RGB 分量，并保留非零颜色分量避免暗部偏色 / Scale one RGB component while preserving nonzero channels to reduce dark-color shifts
 uint8_t scaleComponent(uint8_t component, uint8_t level) {
-  return static_cast<uint8_t>(
-      (static_cast<uint16_t>(component) * level) / 255U);
+  if (component == 0U || level == 0U) {
+    return 0;
+  }
+  const uint16_t scaled =
+      (static_cast<uint16_t>(component) * level + 127U) / 255U;
+  return static_cast<uint8_t>(std::max<uint16_t>(1U, scaled));
 }
 
-//  呼吸灯使用蓝紫色，给出柔和但有层次的冷色氛围 / Use blue-purple for breathing to create a soft layered cool-color atmosphere
-constexpr uint8_t kBreatheRed = 92;
-constexpr uint8_t kBreatheGreen = 24;
-constexpr uint8_t kBreatheBlue = 255;
-//  左右移动高光使用青色，运动边缘更清晰 / Use cyan for the left-right highlight so its movement is easy to see
-constexpr uint8_t kSweepRed = 0;
-constexpr uint8_t kSweepGreen = 220;
-constexpr uint8_t kSweepBlue = 255;
-//  中心扩散使用粉紫色，突出从中心向外展开的光环 / Use pink-purple for the center ring to emphasize outward expansion
-constexpr uint8_t kCenterExpandRed = 255;
-constexpr uint8_t kCenterExpandGreen = 40;
-constexpr uint8_t kCenterExpandBlue = 190;
+//  把移动高光转换为跑马灯的连续渐亮渐暗亮度 / Convert the moving highlight into a continuous sweep brightness
+uint8_t levelFromSweepGradient(float gradient) {
+  const float glow = kSweepMinimumGlow +
+                     (1.0F - kSweepMinimumGlow) * clampUnit(gradient);
+  return levelFromGlow(glow);
+}
 
 }  //  匿名命名空间 / Anonymous namespace
 
@@ -214,6 +229,17 @@ void EffectController::setSolid() {
   render(millis(), true);
 }
 
+//  修改当前颜色但不改变正在运行的动效；彩虹和关灯状态保持原样 / Change the current color without changing the active effect; rainbow and off stay unchanged
+void EffectController::setColor(uint8_t red, uint8_t green, uint8_t blue) {
+  red_ = red;
+  green_ = green;
+  blue_ = blue;
+  if (mode_ == EffectMode::Rainbow || mode_ == EffectMode::Off) {
+    return;
+  }
+  render(millis(), true);
+}
+
 //  切换到连续循环的彩虹动效 / Switch to the continuously cycling rainbow effect
 void EffectController::setRainbow() {
   //  彩虹模式沿用当前亮度，但每颗灯使用不同的色相偏移 / Rainbow mode uses current brightness with a hue offset for each LED
@@ -221,23 +247,32 @@ void EffectController::setRainbow() {
   render(millis(), true);
 }
 
-//  切换到蓝紫色呼吸动效 / Switch to the blue-purple breathing effect
+//  切换到纯蓝色呼吸动效 / Switch to the pure-blue breathing effect
 void EffectController::setBreathe() {
-  //  呼吸模式沿用当前颜色，只随时间改变整体亮度 / Breathing mode keeps the current color and changes only overall brightness over time
+  //  进入呼吸灯时使用纯蓝色；之后的颜色命令仍可保留呼吸动效并切换颜色 / Start breathing in pure blue; later color commands keep the effect and change its color
+  red_ = kBreatheRed;
+  green_ = kBreatheGreen;
+  blue_ = kBreatheBlue;
   selectMode(EffectMode::Breathe);
   render(millis(), true);
 }
 
-//  切换到带固定底光的左右追逐动效 / Switch to the left-right sweep with fixed base light
+//  切换到带固定底光的纯绿色左右追逐动效 / Switch to the pure-green left-right sweep with fixed base light
 void EffectController::setSweep() {
-  //  扫描模式创建一个从左到右、再从右到左移动的柔和光点 / Sweep mode creates a soft light point moving left-to-right and back
+  //  进入跑马灯时使用纯绿色；之后的颜色命令仍可保留跑马灯并切换颜色 / Start sweep in pure green; later color commands keep the effect and change its color
+  red_ = kSweepRed;
+  green_ = kSweepGreen;
+  blue_ = kSweepBlue;
   selectMode(EffectMode::Sweep);
   render(millis(), true);
 }
 
-//  切换到带固定底光的中心向外扩散动效 / Switch to the center-out expansion with fixed base light
+//  切换到带固定底光的纯红色中心向外扩散动效 / Switch to the pure-red center-out expansion with fixed base light
 void EffectController::setCenterExpand() {
-  //  中心扩散模式创建一个从中心向两侧展开、再收回的光环 / Center-expand mode creates a ring expanding from center to both sides and returning
+  //  进入扩散灯时使用纯红色；之后的颜色命令仍可保留扩散动效并切换颜色 / Start expansion in pure red; later color commands keep the effect and change its color
+  red_ = kCenterExpandRed;
+  green_ = kCenterExpandGreen;
+  blue_ = kCenterExpandBlue;
   selectMode(EffectMode::CenterExpand);
   render(millis(), true);
 }
@@ -323,44 +358,40 @@ void EffectController::renderBreathe(uint32_t elapsedMs) {
   //  计算整体亮度波形，并保留少量基础亮度 / Calculate overall brightness and retain a small ambient level
   const float wave = 0.5F - 0.5F * std::cos(kTwoPi * phase);
   const uint8_t level = levelFromGlow(0.04F + wave * 0.96F);
-  //  呼吸动效固定使用蓝紫色，不继承上一次常亮颜色 / Breathing uses a fixed blue-purple color instead of inheriting the previous solid color
-  strip_.fill(scaleComponent(kBreatheRed, level),
-              scaleComponent(kBreatheGreen, level),
-              scaleComponent(kBreatheBlue, level));
+  //  呼吸动效使用当前颜色，三个分量同步缩放以保持色相 / Breathing uses the current color and scales all components together to preserve hue
+  strip_.fill(scaleComponent(red_, level), scaleComponent(green_, level),
+              scaleComponent(blue_, level));
 }
 
 //  让柔和高光从左向右再返回，同时保留整条底光 / Move a soft highlight left and right while keeping the strip base-lit
 void EffectController::renderSweep(uint32_t elapsedMs) {
-  //  把时间转换为往返相位：0 和 1 都在最左端，0.5 在最右端 / Convert time to a ping-pong phase: 0 and 1 are left, while 0.5 is right
+  //  把时间转换为线性往返相位，端点立即反向，避免到边缘停顿 / Convert time to a linear ping-pong phase so endpoints reverse without pausing
   const float phase = static_cast<float>(elapsedMs % kSweepCycleMs) /
                       static_cast<float>(kSweepCycleMs);
-  //  余弦位置让光点到达端点时自然减速并反向，不会突然折返 / Cosine position eases at both ends before reversing instead of snapping
-  const float position = static_cast<float>(kLedCount - 1U) * 0.5F *
-                         (1.0F - std::cos(kTwoPi * phase));
+  const float pingPong = phase < 0.5F ? phase * 2.0F : (1.0F - phase) * 2.0F;
+  const float position = static_cast<float>(kLedCount - 1U) * pingPong;
   for (uint16_t index = 0; index < kLedCount; ++index) {
-    //  当前灯珠距离光点越近，叠加的高光越强；远离光点也保留固定底光 / LEDs closer to the moving point receive a stronger highlight; distant LEDs keep fixed base light
+    //  距离越近越亮，距离越远越暗，但整条灯带保留连续的最低亮度 / LEDs get brighter near the point and dimmer farther away while keeping a continuous minimum
     const float distance = std::fabs(static_cast<float>(index) - position);
-    //  core 控制亮斑，halo 扩大柔和范围；两者取较大值避免出现断层 / core controls the highlight and halo widens the softness; max avoids visible gaps
-    const float core = cosineFalloff(distance, 1.8F);
-    const float halo = cosineFalloff(distance, 4.6F) * 0.34F;
-    const uint8_t level = levelFromHighlight(std::max(core, halo));
-    //  左右追逐固定使用青色，所有灯保留青色底光，光点经过时只会变亮 / Sweep uses fixed cyan; every LED keeps cyan base light and only brightens as the point passes
-    strip_.setPixel(index, scaleComponent(kSweepRed, level),
-                    scaleComponent(kSweepGreen, level),
-                    scaleComponent(kSweepBlue, level));
+    const uint8_t level = levelFromSweepGradient(
+        cosineFalloff(distance, kSweepGradientRadius));
+    //  跑马灯使用当前颜色，颜色命令不会把动效改成常亮 / Sweep uses the current color; color commands do not switch it to solid mode
+    strip_.setPixel(index, scaleComponent(red_, level),
+                    scaleComponent(green_, level), scaleComponent(blue_, level));
   }
   strip_.show();
 }
 
-//  让粉紫色光环从中心扩散到边缘再返回，并保留固定底光 / Expand a pink-purple ring from center to edge and back with base light
+//  让纯红色光环从中心扩散到边缘再返回，并保留固定底光 / Expand a pure-red ring from center to edge and back with base light
 void EffectController::renderCenterExpand(uint32_t elapsedMs) {
   //  计算中心对称的动画相位，中心和最外侧分别对应半径 0 和最大半径 / Calculate a center-symmetric phase where radius 0 is center and maximum radius is the edge
   const float phase = static_cast<float>(elapsedMs % kCenterExpandCycleMs) /
                       static_cast<float>(kCenterExpandCycleMs);
   //  13 颗灯的几何中心位于索引 6；最大半径约为 6 个灯珠间距 / The geometric center of 13 LEDs is index 6; maximum radius is about six LED spacings
   const float maximumRadius = static_cast<float>(kLedCount - 1U) * 0.5F;
-  //  余弦半径从中心平滑扩展到边缘，再平滑回到中心 / Cosine radius smoothly expands to the edge and returns to center
-  const float radius = maximumRadius * 0.5F * (1.0F - std::cos(kTwoPi * phase));
+  //  线性半径从中心走到边缘再立即反向，避免中心和边缘停顿 / Linear radius travels center-to-edge and reverses immediately to avoid pauses
+  const float pingPong = phase < 0.5F ? phase * 2.0F : (1.0F - phase) * 2.0F;
+  const float radius = maximumRadius * pingPong;
   const float center = maximumRadius;
   for (uint16_t index = 0; index < kLedCount; ++index) {
     //  用灯珠距中心的距离与当前光环半径比较，得到光环厚度方向的距离 / Compare each LED's center distance with the ring radius to get distance from the ring
@@ -371,10 +402,9 @@ void EffectController::renderCenterExpand(uint32_t elapsedMs) {
     const float core = cosineFalloff(ringDistance, 1.25F);
     const float halo = cosineFalloff(ringDistance, 3.8F) * 0.34F;
     const uint8_t level = levelFromHighlight(std::max(core, halo));
-    //  中心扩散固定使用粉紫色，中心和边缘都不会因动画位置变化而熄灭 / Center expansion uses fixed pink-purple; center and edge never turn off as the ring moves
-    strip_.setPixel(index, scaleComponent(kCenterExpandRed, level),
-                    scaleComponent(kCenterExpandGreen, level),
-                    scaleComponent(kCenterExpandBlue, level));
+    //  中心扩散使用当前颜色，中心和边缘都不会因动画位置变化而熄灭 / Center expansion uses the current color; center and edge never turn off as the ring moves
+    strip_.setPixel(index, scaleComponent(red_, level),
+                    scaleComponent(green_, level), scaleComponent(blue_, level));
   }
   strip_.show();
 }

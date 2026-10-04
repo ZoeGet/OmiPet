@@ -43,8 +43,6 @@ constexpr VoiceCommandPhrase kVoiceCommandPhrases[] = {
     {10, "bai se"},  //  白色 / White
     {10, "bai se deng guang"},  //  白色灯光 / White light
     {10, "bai se deng"},  //  白色灯 / White light
-    {11, "r g b"},  //  RGB 彩虹灯 / RGB rainbow lights
-    {11, "r g b deng"},  //  RGB 灯 / RGB lights
     {11, "cai se"},  //  彩色 / Colorful
     {11, "cai se deng guang"},  //  彩色灯光 / Colorful lights
     {11, "cai se deng"},  //  彩色灯 / Colorful lights
