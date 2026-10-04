@@ -1,7 +1,50 @@
 #include "NV3007_Display.h"
 
+#include <cmath>
+
 namespace OmiPetDisplay {
 namespace {
+
+uint16_t blendColor565(uint16_t foreground, uint16_t background,
+                       uint8_t coverage) {
+  const uint16_t inverse = static_cast<uint16_t>(255U - coverage);
+  const uint16_t red = static_cast<uint16_t>(
+      ((((foreground >> 11) & 0x1FU) * coverage) +
+       (((background >> 11) & 0x1FU) * inverse) + 127U) /
+      255U);
+  const uint16_t green = static_cast<uint16_t>(
+      ((((foreground >> 5) & 0x3FU) * coverage) +
+       (((background >> 5) & 0x3FU) * inverse) + 127U) /
+      255U);
+  const uint16_t blue = static_cast<uint16_t>(
+      (((foreground & 0x1FU) * coverage) +
+       ((background & 0x1FU) * inverse) + 127U) /
+      255U);
+  return static_cast<uint16_t>((red << 11) | (green << 5) | blue);
+}
+
+void drawRoundedCorner(Display& display, int16_t centerX, int16_t centerY,
+                       int16_t radius, int8_t directionX,
+                       int8_t directionY, uint16_t color,
+                       uint16_t background) {
+  const int16_t scanLimit = radius + 1;
+  for (int16_t offsetX = 0; offsetX <= scanLimit; ++offsetX) {
+    for (int16_t offsetY = 0; offsetY <= scanLimit; ++offsetY) {
+      const float distance = std::sqrt(static_cast<float>(
+          offsetX * offsetX + offsetY * offsetY));
+      const float edgeDistance = std::fabs(distance - radius);
+      if (edgeDistance >= 1.0F) {
+        continue;
+      }
+
+      const uint8_t coverage = static_cast<uint8_t>(
+          (1.0F - edgeDistance) * 255.0F + 0.5F);
+      display.drawPixel(centerX + directionX * offsetX,
+                        centerY + directionY * offsetY,
+                        blendColor565(color, background, coverage));
+    }
+  }
+}
 
 //  NV3007 常用命令 / Common NV3007 commands
 constexpr uint8_t kCommandMemoryAccessControl = 0x36;  //  MADCTL 显存访问控制命令 / MADCTL memory-access-control command
@@ -137,9 +180,11 @@ constexpr Display::InitCommand kInitSequence[] = {  //  厂家提供的面板初
 
 }  //  匿名命名空间 / Anonymous namespace
 
+//  创建显示驱动对象，默认使用 8 MHz、MSB 优先的 SPI 配置 / Create the display driver with default 8 MHz MSB-first SPI settings
 Display::Display()
     : spi_(SPI), settings_(SPISettings(8000000UL, MSBFIRST, SPI_MODE0)) {}
 
+//  初始化 GPIO、SPI、复位时序和厂家寄存器 / Initialize GPIO, SPI, reset timing, and vendor registers
 bool Display::begin(uint32_t frequency) {
   frequency_ = frequency;
   settings_ = SPISettings(frequency_, MSBFIRST, SPI_MODE0);
@@ -162,38 +207,46 @@ bool Display::begin(uint32_t frequency) {
   digitalWrite(kResetPin, HIGH);
   delay(100);
 
-  //  写入面板寄存器并应用默认方向 / Write panel registers and apply the default rotation
+  //  先设置方向，再写入厂家面板寄存器 / Set orientation before writing the vendor panel registers
+  setRotation(3);
   writeInitSequence();
-  setRotation(0);
   initialized_ = true;
   return true;
 }
 
+//  设置旋转方向、逻辑尺寸和对应的 MADCTL 寄存器值 / Set rotation, logical size, and the matching MADCTL value
 void Display::setRotation(uint8_t rotation) {
   rotation_ = rotation & 0x03U;
   madctl_ = kMadctlValues[rotation_];
 
-  if ((rotation_ & 0x01U) == 0) {
+  if (rotation_ <= 1U) {
     width_ = kPanelWidth;
     height_ = kPanelHeight;
     xOffset_ = 12;
     yOffset_ = 0;
+  } else if (rotation_ == 2U) {
+    width_ = kPanelHeight;
+    height_ = kPanelWidth;
+    xOffset_ = 0;
+    yOffset_ = 14;
   } else {
     width_ = kPanelHeight;
     height_ = kPanelWidth;
     xOffset_ = 0;
-    yOffset_ = 0;
+    yOffset_ = 12;
   }
 
   const uint8_t data[] = {madctl_};
   writeCommandData(kCommandMemoryAccessControl, data, sizeof(data));
 }
 
+//  按硬件有效电平打开或关闭 LCD 背光 / Enable or disable the LCD backlight using the hardware active level
 void Display::setBacklight(bool enabled) {
   const bool level = enabled ? kBacklightActiveHigh : !kBacklightActiveHigh;
   digitalWrite(kBacklightPin, level ? HIGH : LOW);
 }
 
+//  通过 SPI 发送不带参数的 LCD 命令 / Send a parameterless LCD command over SPI
 void Display::writeCommand(uint8_t command) {
   //  发送无参数命令 / Send a command without parameters
   spi_.beginTransaction(settings_);
@@ -204,6 +257,7 @@ void Display::writeCommand(uint8_t command) {
   spi_.endTransaction();
 }
 
+//  通过 SPI 发送 LCD 命令及其参数数据 / Send an LCD command and its parameter bytes over SPI
 void Display::writeCommandData(uint8_t command, const uint8_t* data,
                                size_t length) {
   //  发送命令及参数 / Send a command followed by parameters
@@ -221,6 +275,7 @@ void Display::writeCommandData(uint8_t command, const uint8_t* data,
   spi_.endTransaction();
 }
 
+//  按厂家提供的顺序写入整套 NV3007 初始化命令 / Write the complete vendor NV3007 initialization sequence in order
 void Display::writeInitSequence() {
   //  按顺序执行厂家初始化表 / Execute the vendor initialization table in order
   for (const InitCommand& item : kInitSequence) {
@@ -231,6 +286,7 @@ void Display::writeInitSequence() {
   }
 }
 
+//  不再重复检查坐标，直接设置 LCD 显存写入窗口 / Set the LCD memory window without repeating coordinate checks
 void Display::setAddressWindowUnchecked(uint16_t x0, uint16_t y0,
                                          uint16_t x1, uint16_t y1) {
   //  坐标已经过调用方检查 / Coordinates are validated by the caller
@@ -251,6 +307,7 @@ void Display::setAddressWindowUnchecked(uint16_t x0, uint16_t y0,
   writeCommand(kCommandMemoryWrite);
 }
 
+//  检查并设置包含首尾坐标的 LCD 显存窗口 / Validate and set the inclusive LCD memory window
 void Display::setAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1,
                                uint16_t y1) {
   if (!initialized_ || x0 > x1 || y0 > y1 || x1 >= width_ || y1 >= height_) {
@@ -259,6 +316,7 @@ void Display::setAddressWindow(uint16_t x0, uint16_t y0, uint16_t x1,
   setAddressWindowUnchecked(x0, y0, x1, y1);
 }
 
+//  连续发送指定数量的 RGB565 像素颜色 / Send one RGB565 color for a specified number of pixels
 void Display::writeColor(uint16_t color, uint32_t count) {
   const uint8_t high = static_cast<uint8_t>(color >> 8);
   const uint8_t low = static_cast<uint8_t>(color);
@@ -273,6 +331,7 @@ void Display::writeColor(uint16_t color, uint32_t count) {
   spi_.endTransaction();
 }
 
+//  设置整屏窗口并填充同一种颜色 / Set the full-screen window and fill it with one color
 void Display::fillScreen(uint16_t color) {
   if (!initialized_) {
     return;
@@ -281,6 +340,7 @@ void Display::fillScreen(uint16_t color) {
   writeColor(color, static_cast<uint32_t>(width_) * height_);
 }
 
+//  裁剪矩形到屏幕范围后填充颜色 / Clip a rectangle to the display and fill it
 void Display::fillRect(int16_t x, int16_t y, int16_t width, int16_t height,
                        uint16_t color) {
   if (!initialized_ || width <= 0 || height <= 0) {
@@ -309,6 +369,7 @@ void Display::fillRect(int16_t x, int16_t y, int16_t width, int16_t height,
   writeColor(color, static_cast<uint32_t>(width) * height);
 }
 
+//  裁剪并发送 RGB565 位图像素 / Clip and transmit an RGB565 bitmap
 void Display::drawBitmap(int16_t x, int16_t y, uint16_t width,
                          uint16_t height, const uint16_t* pixels) {
   if (!initialized_ || width == 0 || height == 0 || pixels == nullptr) {
@@ -358,6 +419,7 @@ void Display::drawBitmap(int16_t x, int16_t y, uint16_t width,
   spi_.endTransaction();
 }
 
+//  在坐标有效时绘制一个 RGB565 像素 / Draw one RGB565 pixel when the coordinate is valid
 void Display::drawPixel(int16_t x, int16_t y, uint16_t color) {
   if (!initialized_ || x < 0 || y < 0 || x >= width_ || y >= height_) {
     return;
@@ -367,6 +429,7 @@ void Display::drawPixel(int16_t x, int16_t y, uint16_t color) {
   writeColor(color, 1);
 }
 
+//  绘制经过边界裁剪的水平线 / Draw a horizontally clipped line
 void Display::drawFastHLine(int16_t x, int16_t y, int16_t width,
                             uint16_t color) {
   if (!initialized_ || y < 0 || y >= height_ || width <= 0) {
@@ -388,6 +451,7 @@ void Display::drawFastHLine(int16_t x, int16_t y, int16_t width,
   writeColor(color, static_cast<uint32_t>(width));
 }
 
+//  绘制经过边界裁剪的垂直线 / Draw a vertically clipped line
 void Display::drawFastVLine(int16_t x, int16_t y, int16_t height,
                             uint16_t color) {
   if (!initialized_ || x < 0 || x >= width_ || height <= 0) {
@@ -409,6 +473,7 @@ void Display::drawFastVLine(int16_t x, int16_t y, int16_t height,
   writeColor(color, static_cast<uint32_t>(height));
 }
 
+//  组合四条边绘制矩形边框 / Draw a rectangle outline from four edges
 void Display::drawRect(int16_t x, int16_t y, int16_t width, int16_t height,
                        uint16_t color) {
   if (width <= 0 || height <= 0) return;
@@ -418,8 +483,75 @@ void Display::drawRect(int16_t x, int16_t y, int16_t width, int16_t height,
   drawFastVLine(x + width - 1, y, height, color);
 }
 
+//  按扫描线填充圆角矩形 / Fill a rounded rectangle using scanlines
+void Display::fillRoundRect(int16_t x, int16_t y, int16_t width,
+                            int16_t height, int16_t radius,
+                            uint16_t color) {
+  if (width <= 0 || height <= 0) return;
+  const int16_t maxRadius = (width < height ? width : height) / 2;
+  if (radius < 0) radius = 0;
+  if (radius > maxRadius) radius = maxRadius;
+  if (radius == 0) {
+    fillRect(x, y, width, height, color);
+    return;
+  }
+
+  for (int16_t row = 0; row < height; ++row) {
+    const int16_t edgeDistance = row < radius ? row : height - row - 1;
+    int16_t inset = 0;
+    if (edgeDistance < radius) {
+      const int32_t radiusSquared = static_cast<int32_t>(radius) * radius;
+      const int32_t vertical = radius - edgeDistance;
+      while (inset < radius) {
+        const int32_t horizontal = radius - inset;
+        if (horizontal * horizontal + vertical * vertical <= radiusSquared) {
+          break;
+        }
+        ++inset;
+      }
+    }
+    drawFastHLine(x + inset, y + row, width - inset * 2, color);
+  }
+}
+
+//  绘制圆角矩形边缘 / Draw the perimeter of a rounded rectangle
+void Display::drawRoundRect(int16_t x, int16_t y, int16_t width,
+                            int16_t height, int16_t radius,
+                            uint16_t color, uint16_t background) {
+  if (width <= 0 || height <= 0) return;
+  const int16_t maxRadius = (width < height ? width : height) / 2;
+  if (radius < 0) radius = 0;
+  if (radius > maxRadius) radius = maxRadius;
+  if (radius == 0) {
+    drawRect(x, y, width, height, color);
+    return;
+  }
+
+  drawFastHLine(x + radius, y, width - radius * 2, color);
+  drawFastHLine(x + radius, y + height - 1, width - radius * 2, color);
+  drawFastVLine(x, y + radius, height - radius * 2, color);
+  drawFastVLine(x + width - 1, y + radius, height - radius * 2, color);
+
+  const int16_t leftCenterX = x + radius;
+  const int16_t rightCenterX = x + width - radius - 1;
+  const int16_t topCenterY = y + radius;
+  const int16_t bottomCenterY = y + height - radius - 1;
+
+  drawRoundedCorner(*this, leftCenterX, topCenterY, radius, -1, -1, color,
+                    background);
+  drawRoundedCorner(*this, rightCenterX, topCenterY, radius, 1, -1, color,
+                    background);
+  drawRoundedCorner(*this, leftCenterX, bottomCenterY, radius, -1, 1, color,
+                    background);
+  drawRoundedCorner(*this, rightCenterX, bottomCenterY, radius, 1, 1, color,
+                    background);
+}
+
+//  返回当前旋转方向下的逻辑宽度 / Return the logical width for the current rotation
 uint16_t Display::width() const { return width_; }
+//  返回当前旋转方向下的逻辑高度 / Return the logical height for the current rotation
 uint16_t Display::height() const { return height_; }
+//  查询显示驱动是否已完成初始化 / Check whether the display driver is initialized
 bool Display::initialized() const { return initialized_; }
 
 Display lcd;

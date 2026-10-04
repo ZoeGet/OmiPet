@@ -27,6 +27,9 @@ class WifiManagerService {
   //  查询当前是否已经连接路由器 / Check whether the router is connected
   bool connected() const;
 
+  //  获取当前已连接的 Wi-Fi 名称 / Get the currently connected Wi-Fi name
+  String ssid() const;
+
   //  查询是否正在等待网页配网 / Check whether web provisioning is active
   bool provisioning() const;
 

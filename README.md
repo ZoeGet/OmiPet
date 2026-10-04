@@ -1,8 +1,8 @@
 # OmiPet
 
-OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-S3 为核心，集成竖向彩色 LCD、温湿度传感器、灯带、蜂鸣器和数字麦克风，逐步实现桌面宠物、环境感知和离线语音交互。
+OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-S3 为核心，集成横向显示的彩色 LCD、温湿度传感器、灯带、蜂鸣器和数字麦克风，逐步实现桌面宠物、环境感知和离线语音交互。
 
-> **English** — OmiPet is an open-source desktop companion project built around an ESP32-S3. It combines a vertical color LCD, environmental sensing, addressable LEDs, a buzzer, and an I²S digital microphone with an experimental offline voice interaction path.
+> **English** — OmiPet is an open-source desktop companion project built around an ESP32-S3. It combines a landscape-oriented color LCD, environmental sensing, addressable LEDs, a buzzer, and an I²S digital microphone with an experimental offline voice interaction path.
 
 ## 项目状态 / Project Status
 

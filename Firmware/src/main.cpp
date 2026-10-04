@@ -462,13 +462,15 @@ void setup() {
                            initialReading.humidityPercent,
                            initialReading.valid && !initialReading.stale);
   //  先绘制界面，再执行可能等待 Wi-Fi 的连接流程 / Draw the UI before starting the potentially waiting Wi-Fi connection flow
-  OmiPetUi::setNetworkStatus(false, false);
+  OmiPetUi::setNetworkStatus(false, false, nullptr);
   OmiPetUi::begin();
 
   //  初始化 Wi-Fi；无已保存配置时开启网页配网热点 / Initialize Wi-Fi; start the web portal when no saved configuration exists
   OmiPetNetwork::wifi.begin();
+  const String initialWifiSsid = OmiPetNetwork::wifi.ssid();
   OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
-                             OmiPetNetwork::wifi.provisioning());
+                             OmiPetNetwork::wifi.provisioning(),
+                             initialWifiSsid.c_str());
   //  初始化麦克风采集诊断 / Initialize the microphone capture diagnostic
   //  当前硬件使用右声道槽 / The current hardware uses the right I2S slot
   const bool microphoneReady = OmiPetAudio::microphone.begin(
@@ -505,8 +507,10 @@ void loop() {
     OmiPetAudio::multiNetCommandRecognizer.reset();
     gCommandAudioBuffer.reset();
   }
+  const String currentWifiSsid = OmiPetNetwork::wifi.ssid();
   OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
-                             OmiPetNetwork::wifi.provisioning());
+                             OmiPetNetwork::wifi.provisioning(),
+                             currentWifiSsid.c_str());
 
   //  每 5 秒读取一次温湿度，降低传感器自热和总线占用 / Read every 5 seconds to reduce sensor self-heating and bus usage
   static uint32_t lastSensorReadMs = millis();

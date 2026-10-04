@@ -23,6 +23,7 @@ constexpr bool kBacklightActiveHigh = true;  //  背光控制的有效电平 / A
 //  NV3007 四线 SPI 显示驱动 / NV3007 four-wire SPI display driver
 class Display {
  public:
+  //  创建默认 SPI 配置的显示对象 / Create the display object with default SPI settings
   Display();
 
   //  初始化 GPIO、SPI、复位时序和面板寄存器 / Initialize GPIO, SPI, reset timing, and panel registers
@@ -62,6 +63,15 @@ class Display {
   void drawRect(int16_t x, int16_t y, int16_t width, int16_t height,
                 uint16_t color);
 
+  //  填充圆角矩形 / Fill a rounded rectangle
+  void fillRoundRect(int16_t x, int16_t y, int16_t width, int16_t height,
+                     int16_t radius, uint16_t color);
+
+  //  绘制圆角矩形边框 / Draw a rounded rectangle outline
+  void drawRoundRect(int16_t x, int16_t y, int16_t width, int16_t height,
+                     int16_t radius, uint16_t color,
+                     uint16_t background = 0x0000);
+
   //  获取当前逻辑宽度 / Get the current logical width
   uint16_t width() const;
 
@@ -86,11 +96,16 @@ class Display {
   };
 
  private:
+  //  发送一个无参数命令 / Send one parameterless command
   void writeCommand(uint8_t command);
+  //  发送命令和参数字节 / Send a command and its parameter bytes
   void writeCommandData(uint8_t command, const uint8_t* data,
                         size_t length);
+  //  连续写入指定数量的 RGB565 像素 / Write a number of RGB565 pixels
   void writeColor(uint16_t color, uint32_t count);
+  //  执行厂家初始化命令表 / Execute the vendor initialization table
   void writeInitSequence();
+  //  在调用方已确认坐标有效时设置窗口 / Set a window after the caller validates coordinates
   void setAddressWindowUnchecked(uint16_t x0, uint16_t y0, uint16_t x1,
                                  uint16_t y1);
 

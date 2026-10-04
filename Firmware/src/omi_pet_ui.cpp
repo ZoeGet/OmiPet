@@ -63,30 +63,43 @@ constexpr Glyph kFont[] = {  //  内置 ASCII 5×7 字模表 / Built-in ASCII 5x
     {'Z', {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}},
 };
 
-constexpr uint16_t kBackground =  //  UI 背景色 / UI background color
-    OmiPetDisplay::Display::color565(5, 12, 28);
+constexpr uint16_t kBackground = 0x0000;  //  纯黑页面背景 / Pure-black page background
+constexpr uint16_t kCardFill = OmiPetDisplay::Display::color565(190, 195, 202);  //  淡灰卡片填充色 / Light-gray card fill color
+constexpr uint16_t kCardText = OmiPetDisplay::Display::color565(20, 27, 36);  //  卡片深色文字 / Dark card text color
 constexpr uint16_t kAccent = OmiPetDisplay::Display::color565(72, 220, 255);  //  UI 强调色 / UI accent color
-constexpr uint16_t kPetColor = OmiPetDisplay::Display::color565(255, 180, 80);  //  宠物主体颜色 / Pet body color
 constexpr uint16_t kWhite = OmiPetDisplay::Display::color565(245, 248, 255);  //  UI 白色文字颜色 / UI white text color
 constexpr uint16_t kGreen = OmiPetDisplay::Display::color565(100, 235, 150);  //  正常状态颜色 / Normal-status color
 constexpr uint16_t kYellow = OmiPetDisplay::Display::color565(255, 220, 80);  //  提示状态颜色 / Attention-status color
 constexpr uint16_t kRed = OmiPetDisplay::Display::color565(255, 90, 90);  //  错误状态颜色 / Error-status color
-constexpr uint16_t kDark = OmiPetDisplay::Display::color565(5, 12, 28);  //  深色填充颜色 / Dark fill color
+constexpr uint16_t kPanelLine = OmiPetDisplay::Display::color565(30, 70, 100);  //  模块边框颜色 / Module-border color
 
-constexpr int16_t kScreenWidth = OmiPetDisplay::kPanelWidth;  //  屏幕面板宽度 / Display-panel width
-
+constexpr int16_t kScreenWidth = OmiPetDisplay::kPanelHeight;  //  横屏逻辑宽度 / Landscape logical width
+constexpr int16_t kScreenHeight = OmiPetDisplay::kPanelWidth;  //  横屏逻辑高度 / Landscape logical height
+constexpr int16_t kSideCardWidth = 106;
+constexpr int16_t kSideCardHeight = 63;
+constexpr int16_t kSideCardLeft = 4;
+constexpr int16_t kSideCardRight = kScreenWidth - kSideCardLeft - kSideCardWidth;
+constexpr int16_t kTopCardY = 5;
+constexpr int16_t kBottomCardY = kScreenHeight - kSideCardHeight - kTopCardY;
+constexpr int16_t kCenterCardLeft = kSideCardLeft + kSideCardWidth + 6;
+constexpr int16_t kCenterCardTop = kTopCardY;
+constexpr int16_t kCenterCardWidth =
+    kSideCardRight - kCenterCardLeft - 6;
+constexpr int16_t kCenterCardHeight = kScreenHeight - kTopCardY * 2;
+constexpr int16_t kCardRadius = 9;
 uint32_t gClockStartMillis = 0;
 uint32_t gClockBaseSeconds = 0;
-uint32_t gLastRenderedSecond = UINT32_MAX;
-bool gBlink = false;
+char gRenderedClockText[6] = {};
+bool gClockRendered = false;
 bool gUiStarted = false;
 bool gEnvironmentValid = false;
 float gTemperatureC = 0.0F;
 float gHumidityPercent = 0.0F;
 bool gNetworkConnected = false;
 bool gNetworkProvisioning = false;
+char gWifiName[33] = {};
 const char* gVoiceStatus = "IDLE";
-uint16_t gGlyphBitmap[15 * 21] = {};
+uint16_t gGlyphBitmap[20 * 28] = {};
 
 //  查找内置字模 / Find a glyph in the built-in font
 const Glyph* findGlyph(char character) {
@@ -101,6 +114,7 @@ const Glyph* findGlyph(char character) {
   return &kFont[0];
 }
 
+//  计算一行文本按指定缩放比例绘制时的像素宽度 / Calculate the pixel width of text at the requested scale
 int16_t textWidth(const char* text, uint8_t scale) {
   const size_t length = std::strlen(text);
   if (length == 0) {
@@ -109,9 +123,9 @@ int16_t textWidth(const char* text, uint8_t scale) {
   return static_cast<int16_t>((length * 6U - 1U) * scale);
 }
 
-//  绘制左对齐文本 / Draw left-aligned text
+//  从指定左上角绘制一行文本 / Draw one line of text from the specified top-left position
 void drawText(int16_t x, int16_t y, const char* text, uint8_t scale,
-              uint16_t color) {
+              uint16_t color, uint16_t backgroundColor = kBackground) {
   const uint16_t glyphWidth = static_cast<uint16_t>(5U * scale);
   const uint16_t glyphHeight = static_cast<uint16_t>(7U * scale);
   for (size_t characterIndex = 0; text[characterIndex] != '\0';
@@ -120,7 +134,7 @@ void drawText(int16_t x, int16_t y, const char* text, uint8_t scale,
     for (uint8_t row = 0; row < 7; ++row) {
       for (uint8_t column = 0; column < 5; ++column) {
         const uint16_t pixelColor =
-            (glyph->rows[row] & (0x10U >> column)) != 0 ? color : kBackground;
+            (glyph->rows[row] & (0x10U >> column)) != 0 ? color : backgroundColor;
         for (uint8_t scaleY = 0; scaleY < scale; ++scaleY) {
           for (uint8_t scaleX = 0; scaleX < scale; ++scaleX) {
             const uint16_t bitmapX =
@@ -138,12 +152,17 @@ void drawText(int16_t x, int16_t y, const char* text, uint8_t scale,
   }
 }
 
-void drawCenteredText(int16_t y, const char* text, uint8_t scale,
-                      uint16_t color) {
-  const int16_t width = textWidth(text, scale);
-  drawText((kScreenWidth - width) / 2, y, text, scale, color);
+//  在指定矩形区域内水平居中绘制文本 / Draw text centered horizontally inside a specified rectangle
+void drawCenteredTextInArea(int16_t left, int16_t width, int16_t y,
+                            const char* text, uint8_t scale,
+                            uint16_t color,
+                            uint16_t backgroundColor = kBackground) {
+  const int16_t textPixelWidth = textWidth(text, scale);
+  drawText(left + (width - textPixelWidth) / 2, y, text, scale, color,
+           backgroundColor);
 }
 
+//  把编译时间转换为启动时钟的初始秒数 / Convert the compile time into initial clock seconds
 uint32_t compileTimeSeconds() {
   const char* time = __TIME__;
   const uint32_t hours = static_cast<uint32_t>(time[0] - '0') * 10U +
@@ -155,51 +174,13 @@ uint32_t compileTimeSeconds() {
   return hours * 3600U + minutes * 60U + seconds;
 }
 
+//  根据启动时间计算当前显示的时钟秒数 / Calculate the current display time from the boot time
 uint32_t currentClockSeconds() {
   const uint32_t elapsedSeconds = (millis() - gClockStartMillis) / 1000U;
   return (gClockBaseSeconds + elapsedSeconds) % (24U * 60U * 60U);
 }
 
-void drawPet(bool blink) {
-  OmiPetDisplay::lcd.fillRect(12, 42, 118, 132, kBackground);
-
-  //  耳朵和脸部 / Ears and face
-  OmiPetDisplay::lcd.fillRect(31, 48, 22, 20, kPetColor);
-  OmiPetDisplay::lcd.fillRect(89, 48, 22, 20, kPetColor);
-  OmiPetDisplay::lcd.fillRect(24, 60, 94, 94, kPetColor);
-  OmiPetDisplay::lcd.drawRect(24, 60, 94, 94, kAccent);
-
-  //  眼睛和嘴巴 / Eyes and mouth
-  if (blink) {
-    OmiPetDisplay::lcd.fillRect(40, 88, 20, 4, kDark);
-    OmiPetDisplay::lcd.fillRect(82, 88, 20, 4, kDark);
-  } else {
-    OmiPetDisplay::lcd.fillRect(40, 80, 20, 24, kWhite);
-    OmiPetDisplay::lcd.fillRect(82, 80, 20, 24, kWhite);
-    OmiPetDisplay::lcd.fillRect(47, 88, 7, 10, kDark);
-    OmiPetDisplay::lcd.fillRect(89, 88, 7, 10, kDark);
-  }
-  OmiPetDisplay::lcd.fillRect(60, 119, 22, 4, kDark);
-  OmiPetDisplay::lcd.fillRect(68, 123, 6, 4, kDark);
-  OmiPetDisplay::lcd.fillRect(33, 116, 10, 5, kAccent);
-  OmiPetDisplay::lcd.fillRect(99, 116, 10, 5, kAccent);
-}
-
-void drawPetEyes(bool blink) {
-  //  只刷新眼睛区域，避免眨眼时重绘整张脸 / Refresh only the eye areas to avoid redrawing the whole face
-  OmiPetDisplay::lcd.fillRect(40, 76, 20, 32, kPetColor);
-  OmiPetDisplay::lcd.fillRect(82, 76, 20, 32, kPetColor);
-  if (blink) {
-    OmiPetDisplay::lcd.fillRect(40, 88, 20, 4, kDark);
-    OmiPetDisplay::lcd.fillRect(82, 88, 20, 4, kDark);
-    return;
-  }
-  OmiPetDisplay::lcd.fillRect(40, 80, 20, 24, kWhite);
-  OmiPetDisplay::lcd.fillRect(82, 80, 20, 24, kWhite);
-  OmiPetDisplay::lcd.fillRect(47, 88, 7, 10, kDark);
-  OmiPetDisplay::lcd.fillRect(89, 88, 7, 10, kDark);
-}
-
+//  更新时钟文本，只重绘发生变化的数字 / Update the clock text and redraw only changed digits
 void drawClock(uint32_t seconds) {
   char clockText[12] = {};
   const uint32_t hours = seconds / 3600U;
@@ -207,13 +188,25 @@ void drawClock(uint32_t seconds) {
   std::snprintf(clockText, sizeof(clockText), "%02lu:%02lu",
                 static_cast<unsigned long>(hours),
                 static_cast<unsigned long>(minutes));
-
-  drawCenteredText(205, clockText, 3, kWhite);
+  constexpr uint8_t kClockScale = 4;
+  constexpr int16_t kClockY = 53;
+  const int16_t clockX = kCenterCardLeft +
+      (kCenterCardWidth - textWidth(clockText, kClockScale)) / 2;
+  for (size_t index = 0; clockText[index] != '\0'; ++index) {
+    if (!gClockRendered || clockText[index] != gRenderedClockText[index]) {
+      char changedCharacter[2] = {clockText[index], '\0'};
+      drawText(clockX + static_cast<int16_t>(index * 6U * kClockScale),
+               kClockY, changedCharacter, kClockScale, kWhite, kBackground);
+    }
+  }
+  std::strncpy(gRenderedClockText, clockText, sizeof(gRenderedClockText) - 1U);
+  gClockRendered = true;
 }
 
-void formatTemperature(char* output, size_t outputSize) {
-  int32_t tenths = static_cast<int32_t>(gTemperatureC * 10.0F +
-                                        (gTemperatureC >= 0.0F ? 0.5F : -0.5F));
+//  把摄氏温度格式化为带一位小数的屏幕文本 / Format Celsius temperature as one-decimal display text
+void formatTemperature(float temperatureC, char* output, size_t outputSize) {
+  int32_t tenths = static_cast<int32_t>(temperatureC * 10.0F +
+                                        (temperatureC >= 0.0F ? 0.5F : -0.5F));
   const bool negative = tenths < 0;
   const uint32_t absoluteTenths =
       static_cast<uint32_t>(negative ? -tenths : tenths);
@@ -230,95 +223,189 @@ void formatTemperature(char* output, size_t outputSize) {
   }
 }
 
-void drawEnvironment() {
-  char temperatureText[12] = {};
-  char humidityText[10] = {};
-  if (gEnvironmentValid) {
-    formatTemperature(temperatureText, sizeof(temperatureText));
-    const int32_t humidity = static_cast<int32_t>(gHumidityPercent + 0.5F);
-    std::snprintf(humidityText, sizeof(humidityText), "H %ld%%",
+//  准备温湿度显示字符串，无效时生成占位文本 / Prepare environment strings or placeholders when invalid
+void formatEnvironmentValues(bool valid, float temperatureC,
+                             float humidityPercent, char* temperatureText,
+                             size_t temperatureSize, char* humidityText,
+                             size_t humiditySize) {
+  if (valid) {
+    formatTemperature(temperatureC, temperatureText, temperatureSize);
+    const int32_t humidity = static_cast<int32_t>(humidityPercent + 0.5F);
+    std::snprintf(humidityText, humiditySize, "H %ld%%",
                   static_cast<long>(humidity));
   } else {
-    std::strncpy(temperatureText, "T --C", sizeof(temperatureText) - 1U);
-    std::strncpy(humidityText, "H --%", sizeof(humidityText) - 1U);
+    std::strncpy(temperatureText, "T --C", temperatureSize - 1U);
+    std::strncpy(humidityText, "H --%", humiditySize - 1U);
   }
-
-  //  分行局部刷新，避免覆盖整块屏幕 / Refresh each row locally to avoid redrawing the whole screen
-  OmiPetDisplay::lcd.fillRect(0, 300, kScreenWidth, 26, kBackground);
-  OmiPetDisplay::lcd.fillRect(0, 330, kScreenWidth, 26, kBackground);
-  drawCenteredText(304, temperatureText, 2, kGreen);
-  drawCenteredText(334, humidityText, 2, kAccent);
 }
 
-void drawNetworkStatus() {
-  const char* statusText = "WIFI --";
+//  只刷新温湿度卡片中发生变化的数值区域 / Refresh only changed value areas in the environment card
+void drawEnvironmentValues(bool drawTemperature, bool drawHumidity) {
+  char temperatureText[12] = {};
+  char humidityText[10] = {};
+  formatEnvironmentValues(gEnvironmentValid, gTemperatureC, gHumidityPercent,
+                          temperatureText, sizeof(temperatureText),
+                          humidityText, sizeof(humidityText));
+  const int16_t x = kSideCardLeft;
+  const int16_t y = kTopCardY;
+  if (drawTemperature) {
+    OmiPetDisplay::lcd.fillRect(x + 5, y + 27, kSideCardWidth - 10, 10,
+                                kBackground);
+    drawText(x + 5 + (kSideCardWidth - 10 - textWidth(temperatureText, 1)) / 2,
+             y + 28, temperatureText, 1, kWhite, kBackground);
+  }
+  if (drawHumidity) {
+    OmiPetDisplay::lcd.fillRect(x + 5, y + 43, kSideCardWidth - 10, 10,
+                                kBackground);
+    drawText(x + 5 + (kSideCardWidth - 10 - textWidth(humidityText, 1)) / 2,
+             y + 44, humidityText, 1, kWhite, kBackground);
+  }
+}
+
+//  绘制模块边框和标题 / Draw a module frame and title
+void drawModuleFrame(int16_t x, int16_t y, int16_t width, int16_t height,
+                     const char* title, uint16_t titleColor) {
+  OmiPetDisplay::lcd.drawRoundRect(x, y, width, height, kCardRadius, kPanelLine,
+                                   kBackground);
+  drawText(x + 7, y + 8, title, 1, titleColor, kBackground);
+}
+
+//  绘制温湿度卡片及其当前数值 / Draw the environment card and current values
+void drawEnvironment() {
+  drawModuleFrame(kSideCardLeft, kTopCardY, kSideCardWidth, kSideCardHeight,
+                  "ENVIRONMENT", kGreen);
+  drawEnvironmentValues(true, true);
+}
+
+//  绘制网络卡片，并按需创建卡片边框 / Draw the network card and optionally create its frame
+void drawNetworkStatus(bool drawFrame) {
+  const char* statusText = "WIFI NOT";
   uint16_t statusColor = kRed;
   if (gNetworkConnected) {
-    statusText = "WIFI OK";
+    statusText = gWifiName[0] != '\0' ? gWifiName : "WIFI CONNECTED";
     statusColor = kGreen;
-  } else if (gNetworkProvisioning) {
-    statusText = "WIFI SET";
-    statusColor = kYellow;
   }
 
-  //  局部刷新网络状态，避免每次循环重复刷屏 / Refresh only the network status area to avoid repeated full updates
-  OmiPetDisplay::lcd.fillRect(0, 400, kScreenWidth, 28, kBackground);
-  drawCenteredText(405, statusText, 1, statusColor);
+  const int16_t x = kSideCardLeft;
+  const int16_t y = kBottomCardY;
+  if (drawFrame) {
+    drawModuleFrame(x, y, kSideCardWidth, kSideCardHeight, "NETWORK", kAccent);
+  }
+  OmiPetDisplay::lcd.fillRect(x + 5, y + 28, kSideCardWidth - 10, 24,
+                              kBackground);
+  if (gNetworkConnected) {
+    char displayName[17] = {};
+    std::strncpy(displayName, statusText, sizeof(displayName) - 1U);
+    if (std::strlen(statusText) >= sizeof(displayName)) {
+      displayName[13] = '.';
+      displayName[14] = '.';
+      displayName[15] = '.';
+      displayName[16] = '\0';
+    }
+    drawCenteredTextInArea(x + 5, kSideCardWidth - 10, y + 35, displayName,
+                           1, statusColor, kBackground);
+  } else {
+    drawCenteredTextInArea(x + 5, kSideCardWidth - 10, y + 31, statusText, 1,
+                           statusColor, kBackground);
+    drawCenteredTextInArea(x + 5, kSideCardWidth - 10, y + 43, "CONNECTED", 1,
+                           statusColor, kBackground);
+  }
 }
 
-void drawVoiceStatus() {
-  //  局部刷新语音状态区域 / Refresh only the voice status area
-  OmiPetDisplay::lcd.fillRect(0, 382, kScreenWidth, 18, kBackground);
-  drawCenteredText(383, gVoiceStatus, 1, kYellow);
+//  绘制语音状态卡片，并按需创建卡片边框 / Draw the voice card and optionally create its frame
+void drawVoiceStatus(bool drawFrame) {
+  const int16_t x = kSideCardRight;
+  const int16_t y = kTopCardY;
+  if (drawFrame) {
+    drawModuleFrame(x, y, kSideCardWidth, kSideCardHeight, "VOICE", kYellow);
+  }
+  OmiPetDisplay::lcd.fillRect(x + 5, y + 30, kSideCardWidth - 10, 17,
+                              kBackground);
+  drawCenteredTextInArea(x + 5, kSideCardWidth - 10, y + 35, gVoiceStatus, 1,
+                         kYellow, kBackground);
 }
-//  绘制不随时间变化的界面元素 / Draw static user-interface elements
+
+//  绘制电池卡片；电量业务尚未接入时显示占位符 / Draw the battery card with a placeholder until battery logic is connected
+void drawBatteryStatus() {
+  const int16_t x = kSideCardRight;
+  const int16_t y = kBottomCardY;
+  drawModuleFrame(x, y, kSideCardWidth, kSideCardHeight, "BATTERY", kYellow);
+  drawCenteredTextInArea(x + 5, kSideCardWidth - 10, y + 35, "--%", 1,
+                         kYellow, kBackground);
+}
+
+//  绘制仪表盘首屏和所有静态卡片 / Draw the dashboard first frame and all static cards
 void drawStaticUi() {
   OmiPetDisplay::lcd.fillScreen(kBackground);
-  drawCenteredText(10, "OMIPET", 2, kAccent);
-  drawPet(false);
+  drawModuleFrame(kCenterCardLeft, kCenterCardTop, kCenterCardWidth,
+                  kCenterCardHeight, "", kAccent);
+  drawCenteredTextInArea(kCenterCardLeft, kCenterCardWidth, 19, "OMIPET", 1,
+                         kAccent, kBackground);
   drawClock(currentClockSeconds());
-  drawCenteredText(254, __DATE__, 1, kAccent);
+  drawCenteredTextInArea(kCenterCardLeft, kCenterCardWidth, 104, __DATE__, 1,
+                         kWhite, kBackground);
 
   drawEnvironment();
-  drawCenteredText(364, "BAT --%", 2, kYellow);
-  drawVoiceStatus();
-  drawNetworkStatus();
+  drawNetworkStatus(true);
+  drawVoiceStatus(true);
+  drawBatteryStatus();
 }
-
 }  //  匿名命名空间 / Anonymous namespace
 
-//  初始化屏幕界面和时钟基准 / Initialize the screen UI and clock base
+//  初始化界面时钟、静态布局和首帧内容 / Initialize the UI clock, static layout, and first frame
 void begin() {
   gClockStartMillis = millis();
   gClockBaseSeconds = compileTimeSeconds();
-  gLastRenderedSecond = UINT32_MAX;
-  gBlink = false;
+  gClockRendered = false;
   drawStaticUi();
   gUiStarted = true;
 }
 
+//  保存温湿度数据并只更新变化的读数 / Store environment data and update only changed readings
 void setEnvironment(float temperatureC, float humidityPercent, bool valid) {
+  char oldTemperatureText[12] = {};
+  char oldHumidityText[10] = {};
+  formatEnvironmentValues(gEnvironmentValid, gTemperatureC, gHumidityPercent,
+                          oldTemperatureText, sizeof(oldTemperatureText),
+                          oldHumidityText, sizeof(oldHumidityText));
   gTemperatureC = temperatureC;
   gHumidityPercent = humidityPercent;
   gEnvironmentValid = valid;
   if (gUiStarted) {
-    drawEnvironment();
+    char newTemperatureText[12] = {};
+    char newHumidityText[10] = {};
+    formatEnvironmentValues(gEnvironmentValid, gTemperatureC, gHumidityPercent,
+                            newTemperatureText, sizeof(newTemperatureText),
+                            newHumidityText, sizeof(newHumidityText));
+    const bool temperatureChanged =
+        std::strcmp(oldTemperatureText, newTemperatureText) != 0;
+    const bool humidityChanged =
+        std::strcmp(oldHumidityText, newHumidityText) != 0;
+    if (temperatureChanged || humidityChanged) {
+      drawEnvironmentValues(temperatureChanged, humidityChanged);
+    }
   }
 }
 
-void setNetworkStatus(bool connected, bool provisioning) {
+//  保存联网状态，仅在状态变化时刷新屏幕 / Store network state and refresh only when it changes
+void setNetworkStatus(bool connected, bool provisioning, const char* ssid) {
+  const char* safeSsid = ssid == nullptr ? "" : ssid;
   if (gNetworkConnected == connected &&
-      gNetworkProvisioning == provisioning) {
+      gNetworkProvisioning == provisioning &&
+      std::strcmp(gWifiName, safeSsid) == 0) {
     return;
   }
 
   gNetworkConnected = connected;
   gNetworkProvisioning = provisioning;
+  std::strncpy(gWifiName, safeSsid, sizeof(gWifiName) - 1U);
+  gWifiName[sizeof(gWifiName) - 1U] = '\0';
   if (gUiStarted) {
-    drawNetworkStatus();
+    drawNetworkStatus(false);
   }
 }
 
+//  保存语音状态文本，仅在文本变化时刷新屏幕 / Store voice-status text and refresh only when it changes
 void setVoiceStatus(const char* statusText) {
   if (statusText == nullptr || std::strcmp(gVoiceStatus, statusText) == 0) {
     return;
@@ -326,23 +413,21 @@ void setVoiceStatus(const char* statusText) {
 
   gVoiceStatus = statusText;
   if (gUiStarted) {
-    drawVoiceStatus();
+    drawVoiceStatus(false);
   }
 }
-//  按需刷新动态界面 / Refresh dynamic interface elements when needed
+//  仅在显示时间变化时刷新数字 / Refresh clock digits only when displayed time changes
 void update() {
   const uint32_t seconds = currentClockSeconds();
-  if (seconds == gLastRenderedSecond) {
+  char clockText[12] = {};
+  const uint32_t hours = seconds / 3600U;
+  const uint32_t minutes = (seconds / 60U) % 60U;
+  std::snprintf(clockText, sizeof(clockText), "%02lu:%02lu",
+                static_cast<unsigned long>(hours),
+                static_cast<unsigned long>(minutes));
+  if (gClockRendered && std::strcmp(clockText, gRenderedClockText) == 0) {
     return;
   }
-  gLastRenderedSecond = seconds;
   drawClock(seconds);
-
-  const bool blink = (seconds % 8U == 0U) || (seconds % 8U == 1U);
-  if (blink != gBlink) {
-    gBlink = blink;
-    drawPetEyes(gBlink);
-  }
 }
-
 }  //  OmiPetUi 命名空间 / OmiPetUi namespace
