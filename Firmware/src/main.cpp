@@ -418,6 +418,18 @@ void updateVoiceDebugInput() {
     }
   }
 }
+void refreshNetworkAndTimeUi() {
+  const bool wifiConnected = OmiPetNetwork::wifi.connected();
+  OmiPetTime::ntp.update(wifiConnected);
+  const OmiPetTime::DateTime currentDateTime = OmiPetTime::ntp.current();
+  OmiPetUi::setDateTime(currentDateTime.valid, currentDateTime.year,
+                        currentDateTime.month, currentDateTime.day,
+                        currentDateTime.hour, currentDateTime.minute);
+  const String currentWifiSsid = OmiPetNetwork::wifi.ssid();
+  OmiPetUi::setNetworkStatus(wifiConnected,
+                             OmiPetNetwork::wifi.provisioning(),
+                             currentWifiSsid.c_str());
+}
 //  持续输出系统心跳，帮助区分识别失败和系统停滞 / Print a persistent heartbeat to distinguish recognition failures from a stalled system
 void updateSystemHeartbeat() {
   if (millis() - gLastSystemHeartbeatMs < 2000U) {
@@ -502,12 +514,7 @@ void setup() {
 void loop() {
   //  处理 WiFiManager 网页配网和连接状态 / Process WiFiManager provisioning and connection state
   OmiPetNetwork::wifi.update();
-  const bool wifiConnected = OmiPetNetwork::wifi.connected();
-  OmiPetTime::ntp.update(wifiConnected);
-  const OmiPetTime::DateTime currentDateTime = OmiPetTime::ntp.current();
-  OmiPetUi::setDateTime(currentDateTime.valid, currentDateTime.year,
-                        currentDateTime.month, currentDateTime.day,
-                        currentDateTime.hour, currentDateTime.minute);
+  refreshNetworkAndTimeUi();
   //  先推进灯效，避免语音识别处理占用主循环时延后动画刷新 / Advance effects first so speech processing delays animation refresh less
   OmiPetLed::effects.update();
   updateSystemHeartbeat();
@@ -522,11 +529,7 @@ void loop() {
     OmiPetAudio::multiNetCommandRecognizer.reset();
     gCommandAudioBuffer.reset();
   }
-  const String currentWifiSsid = OmiPetNetwork::wifi.ssid();
-  OmiPetUi::setNetworkStatus(OmiPetNetwork::wifi.connected(),
-                             OmiPetNetwork::wifi.provisioning(),
-                             currentWifiSsid.c_str());
-
+  refreshNetworkAndTimeUi();
   //  每 5 秒读取一次温湿度，降低传感器自热和总线占用 / Read every 5 seconds to reduce sensor self-heating and bus usage
   static uint32_t lastSensorReadMs = millis();
   if (millis() - lastSensorReadMs >= 5000U) {

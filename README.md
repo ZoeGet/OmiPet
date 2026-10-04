@@ -246,7 +246,7 @@ ESP32-S3 使用原生 USB CDC 输出串口日志。当前运行状态可以通�
 
 首次没有保存 Wi-Fi 配置时，设备会启动配网热点并显示门户地址；使用手机连接热点后，在网页中选择附近 Wi-Fi 并填写密码即可完成配网。
 
-联网后固件通过 `ntp.aliyun.com`、`pool.ntp.org` 和 `time.nist.gov` 获取时间，按 UTC+8 显示。只有 Wi-Fi 已连接且 NTP 已同步时才显示时间；Wi-Fi 断开或 NTP 尚未同步时，时间显示为 `--:--`，日期显示为 `----/--/--`，不会回退到编译时间。
+联网后固件通过 `ntp.aliyun.com`、`pool.ntp.org` 和 `time.nist.gov` 获取时间，按 UTC+8 显示；首次同步失败每 10 秒重试，已同步后每 1 小时重新校时。主循环在音频处理前后刷新网络和时间状态，减少语音推理造成的 UI 延迟。只有 Wi-Fi 已连接且 NTP 已同步时才显示时间；Wi-Fi 断开或 NTP 尚未同步时，时间显示为 `--:--`，日期显示为 `----/--/--`，不会回退到编译时间。
 
 ## 温湿度补偿说明 / Sensor Compensation
 
@@ -263,7 +263,7 @@ AHT20 上电初期的读数通常接近环境值。随着 ESP32-S3、LCD 背光�
 - [x] WS2812B 灯带驱动 / WS2812B strip driver
 - [x] 无源蜂鸣器驱动 / Passive buzzer driver
 - [x] Wi-Fi 网页配网 / Wi-Fi captive-portal provisioning
-- [x] 联网 NTP 时间和日期显示 / Network NTP time and date display
+- [x] 联网 NTP 时间和日期显示、每小时复校 / Network NTP time/date display with hourly resynchronization
 - [x] ICS-43434 原始 I²S 采集 / Raw ICS-43434 I²S capture
 - [x] 音量统计和基础语音活动检测 / Level statistics and basic speech activity detection
 - [x] 16-bit PCM 音频帧适配 / 16-bit PCM audio frame adaptation

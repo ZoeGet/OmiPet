@@ -8,7 +8,8 @@ namespace OmiPetTime {
 namespace {
 
 constexpr char kTimeZone[] = "UTC-8";  //  中国标准时间 UTC+8 / China Standard Time UTC+8
-constexpr uint32_t kNtpRetryIntervalMs = 10000U;  //  NTP 配置重试间隔 / NTP configuration retry interval
+constexpr uint32_t kNtpInitialRetryIntervalMs = 10000U;  //  首次同步失败后的重试间隔 / Retry interval before initial synchronization
+constexpr uint32_t kNtpResyncIntervalMs = 60UL * 60UL * 1000UL;  //  已同步后的周期校时间隔 / Periodic resynchronization interval after synchronization
 constexpr time_t kMinimumValidEpoch = 1704067200;  //  2024-01-01 00:00:00 UTC / 2024-01-01 00:00:00 UTC
 
 }  //  匿名命名空间 / Anonymous namespace
@@ -44,13 +45,20 @@ void TimeService::update(bool wifiConnected) {
   }
 
   const uint32_t nowMs = millis();
-  if (!configured_ || nowMs - lastConfigAtMs_ >= kNtpRetryIntervalMs) {
+  const bool initialSyncRetryDue =
+      !synchronized_ &&
+      nowMs - lastConfigAtMs_ >= kNtpInitialRetryIntervalMs;
+  const bool periodicResyncDue =
+      synchronized_ && nowMs - lastConfigAtMs_ >= kNtpResyncIntervalMs;
+  if (!configured_ || initialSyncRetryDue || periodicResyncDue) {
     configTzTime(kTimeZone, "ntp.aliyun.com", "pool.ntp.org",
                  "time.nist.gov");
     configured_ = true;
     lastConfigAtMs_ = nowMs;
     if (!synchronized_) {
       Serial.println("[TIME] NTP sync started");
+    } else {
+      Serial.println("[TIME] hourly NTP resync started");
     }
   }
 
