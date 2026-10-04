@@ -22,6 +22,7 @@ constexpr uint8_t kSoftResetCommand[] = {0xBA};  //  AHT20 软复位命令帧 / 
 
 }  //  匿名命名空间 / Anonymous namespace
 
+//  初始化 AHT20 并完成 I2C 探测和校准 / Initialize AHT20, probe I2C, and complete calibration
 bool Aht20Sensor::begin(TwoWire& wire, uint8_t sda, uint8_t scl,
                         uint32_t frequency) {
   //  保存总线配置并清空上一轮状态 / Save bus settings and clear the previous state
@@ -49,6 +50,7 @@ bool Aht20Sensor::begin(TwoWire& wire, uint8_t sda, uint8_t scl,
   return true;
 }
 
+//  触发一次测量，校验数据并更新最近一次温湿度结果 / Trigger one measurement, validate it, and update the latest reading
 bool Aht20Sensor::readMeasurement() {
   if (!initialized_ || wire_ == nullptr) {
     return fail(Aht20Error::NotInitialized);
@@ -120,22 +122,27 @@ bool Aht20Sensor::readMeasurement() {
   return true;
 }
 
+//  返回最近一次测量结果；valid 和 stale 表示数据是否有效及是否过期 / Return the latest reading; valid and stale show whether it is valid and current
 const Aht20Measurement& Aht20Sensor::measurement() const {
   return measurement_;
 }
 
+//  返回最近一次驱动错误码 / Return the most recent driver error code
 Aht20Error Aht20Sensor::lastError() const {
   return lastError_;
 }
 
+//  返回连续读取失败次数，用于判断是否需要自动恢复 / Return consecutive read failures used to trigger recovery
 uint32_t Aht20Sensor::consecutiveFailures() const {
   return consecutiveFailures_;
 }
 
+//  查询传感器驱动是否已经成功初始化 / Check whether the sensor driver initialized successfully
 bool Aht20Sensor::initialized() const {
   return initialized_;
 }
 
+//  通过 I2C 地址探测传感器是否在线 / Probe whether the sensor responds at its I2C address
 bool Aht20Sensor::probe() {
   //  发送空事务，仅用于确认 0x38 地址应答 / Send an empty transaction only to confirm address 0x38 responds
   wire_->beginTransmission(kAht20Address);
@@ -145,6 +152,7 @@ bool Aht20Sensor::probe() {
   return true;
 }
 
+//  读取 AHT20 状态字节，供 Busy 和校准状态判断使用 / Read the AHT20 status byte for busy and calibration checks
 bool Aht20Sensor::readStatus(uint8_t& status) {
   //  requestFrom 会在总线上生成 0x71 读地址，不要把 0x71 当作数据写入 / requestFrom generates the 0x71 read address on the bus; do not write 0x71 as payload data
   const size_t requested = wire_->requestFrom(
@@ -156,6 +164,7 @@ bool Aht20Sensor::readStatus(uint8_t& status) {
   return true;
 }
 
+//  检查校准位，必要时发送初始化命令并等待校准完成 / Check calibration and initialize the sensor when needed
 bool Aht20Sensor::ensureCalibration() {
   //  校准位未置位时发送初始化校准命令 / Send the calibration initialization command when the calibration bit is clear
   uint8_t status = 0;
@@ -180,6 +189,7 @@ bool Aht20Sensor::ensureCalibration() {
   return true;
 }
 
+//  向 AHT20 写入一帧命令，并检查 I2C 返回状态 / Write one command frame and check the I2C result
 bool Aht20Sensor::sendCommand(const uint8_t* command, size_t length) {
   //  写入完整命令帧并检查 I2C 结束状态 / Write the complete command frame and check the I2C result
   wire_->beginTransmission(kAht20Address);
@@ -190,6 +200,7 @@ bool Aht20Sensor::sendCommand(const uint8_t* command, size_t length) {
   return true;
 }
 
+//  轮询 Busy 位，直到传感器空闲或达到超时时间 / Poll the busy bit until the sensor is ready or times out
 bool Aht20Sensor::waitUntilReady(uint32_t timeoutMs) {
   //  轮询 Busy 位，避免固定延时后盲目读取 / Poll the Busy bit instead of blindly reading after a fixed delay
   const uint32_t startMs = millis();
@@ -206,6 +217,7 @@ bool Aht20Sensor::waitUntilReady(uint32_t timeoutMs) {
   return fail(Aht20Error::BusyTimeout);
 }
 
+//  从 I2C 总线读取指定长度的数据帧并检查是否短读 / Read a fixed-length I2C frame and reject short reads
 bool Aht20Sensor::readFrame(uint8_t* frame, size_t length) {
   //  检查返回长度，避免解析不完整数据 / Check the returned length to avoid parsing an incomplete frame
   const size_t received = wire_->requestFrom(
@@ -222,6 +234,7 @@ bool Aht20Sensor::readFrame(uint8_t* frame, size_t length) {
   return true;
 }
 
+//  发送软复位并重新完成校准流程 / Send a soft reset and run calibration again
 bool Aht20Sensor::softReset() {
   //  软复位后等待器件恢复，再重新确认校准 / Wait for recovery after soft reset, then verify calibration again
   if (!sendCommand(kSoftResetCommand, sizeof(kSoftResetCommand))) {
@@ -231,6 +244,7 @@ bool Aht20Sensor::softReset() {
   return ensureCalibration();
 }
 
+//  记录失败状态，保留旧测量值，并按条件尝试自动恢复 / Record an error, keep the old reading, and recover when needed
 bool Aht20Sensor::fail(Aht20Error error) {
   //  失败时保留上次数值，但标记为过期 / Retain the previous value but mark it as stale on failure
   lastError_ = error;
@@ -246,10 +260,12 @@ bool Aht20Sensor::fail(Aht20Error error) {
   return false;
 }
 
+//  清除本轮错误，等待下一次测量重新设置结果状态 / Clear the current error before the next measurement sets a new result state
 void Aht20Sensor::clearError() {
   lastError_ = Aht20Error::None;
 }
 
+//  按 AHT20 规定计算数据帧 CRC-8 / Calculate the AHT20 data-frame CRC-8
 uint8_t Aht20Sensor::calculateCrc(const uint8_t* data, size_t length) {
   //  使用多项式 0x31、初始值 0xFF 计算 CRC-8 / Calculate CRC-8 with polynomial 0x31 and initial value 0xFF
   uint8_t crc = 0xFF;

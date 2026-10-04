@@ -87,10 +87,17 @@ void WifiManagerService::update() {
   }
 }
 
+//  查询当前是否已连接到路由器 / Check whether the device is connected to a router
 bool WifiManagerService::connected() const {
   return WiFi.status() == WL_CONNECTED;
 }
 
+//  获取当前已连接的 Wi-Fi 名称 / Get the currently connected Wi-Fi name
+String WifiManagerService::ssid() const {
+  return connected() ? WiFi.SSID() : String();
+}
+
+//  查询网页配网门户是否正在运行 / Check whether the provisioning portal is running
 bool WifiManagerService::provisioning() const {
   return provisioning_;
 }

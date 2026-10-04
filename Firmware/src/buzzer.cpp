@@ -9,6 +9,7 @@ constexpr uint32_t kPwmMaxDuty = (1UL << kBuzzerPwmResolutionBits) - 1UL;  //  �
 
 }  //  匿名命名空间 / Anonymous namespace
 
+//  初始化蜂鸣器 GPIO 和 LEDC PWM 通道 / Initialize the buzzer GPIO and LEDC PWM channel
 bool PassiveBuzzer::begin(uint8_t pin, uint8_t channel) {
   pin_ = pin;
   channel_ = channel;
@@ -36,7 +37,7 @@ bool PassiveBuzzer::begin(uint8_t pin, uint8_t channel) {
   return true;
 }
 
-//  启动一个非阻塞音调 / Start one non-blocking tone
+//  开始播放指定频率和时长的提示音 / Start a tone with the requested frequency and duration
 bool PassiveBuzzer::startTone(uint32_t frequencyHz,
                               uint32_t durationMs,
                               uint8_t dutyPercent) {
@@ -63,7 +64,7 @@ bool PassiveBuzzer::startTone(uint32_t frequencyHz,
   return true;
 }
 
-//  停止当前音调并释放引脚复用 / Stop the current tone and release pin multiplexing
+//  立即停止当前蜂鸣器输出 / Stop the current buzzer output immediately
 void PassiveBuzzer::stop() {
   if (!initialized_) {
     return;
@@ -78,7 +79,7 @@ void PassiveBuzzer::stop() {
   durationMs_ = 0;
 }
 
-//  更新音调计时并在到期后停止 / Update tone timing and stop when it expires
+//  检查提示音是否到时，到时后自动停止 / Stop the tone when its duration expires
 void PassiveBuzzer::update() {
   if (!playing_ || durationMs_ == 0U) {
     return;
@@ -88,7 +89,7 @@ void PassiveBuzzer::update() {
   }
 }
 
-//  设置静音状态但保留播放进度 / Set mute state while preserving playback progress
+//  设置静音状态，并同步关闭或恢复当前音调 / Set mute state and silence or restore the active tone
 void PassiveBuzzer::setMute(bool muted) {
   muted_ = muted;
   if (!initialized_ || !playing_) {
@@ -103,18 +104,22 @@ void PassiveBuzzer::setMute(bool muted) {
   }
 }
 
+//  查询蜂鸣器当前是否正在播放提示音 / Check whether a tone is currently playing
 bool PassiveBuzzer::isPlaying() const {
   return playing_;
 }
 
+//  查询蜂鸣器是否处于静音状态 / Check whether the buzzer is muted
 bool PassiveBuzzer::isMuted() const {
   return muted_;
 }
 
+//  返回最近一次蜂鸣器错误码 / Return the most recent buzzer error code
 BuzzerError PassiveBuzzer::lastError() const {
   return lastError_;
 }
 
+//  把频率和占空比写入 LEDC，真正产生 PWM 输出 / Apply frequency and duty cycle to the LEDC PWM output
 bool PassiveBuzzer::applyTone(uint32_t frequencyHz, uint8_t dutyPercent) {
   if (ledcSetup(channel_, frequencyHz, kBuzzerPwmResolutionBits) == 0U) {
     return fail(BuzzerError::PwmSetupFailed);
@@ -129,6 +134,7 @@ bool PassiveBuzzer::applyTone(uint32_t frequencyHz, uint8_t dutyPercent) {
   return true;
 }
 
+//  保存错误码并结束当前播放，统一处理失败路径 / Save an error code and stop the current tone
 bool PassiveBuzzer::fail(BuzzerError error) {
   lastError_ = error;
   stop();
