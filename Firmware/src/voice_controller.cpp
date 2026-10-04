@@ -6,6 +6,7 @@
 //  唤醒确认音和指令监听状态机实现 / Wake acknowledgement and command-listening state machine implementation
 namespace OmiPetVoice {
 
+//  初始化语音状态机并把界面设置为待机 / Initialize the voice state machine and show idle
 bool VoiceController::begin() {
   state_ = VoiceState::Idle;
   acknowledgementPhase_ = AcknowledgementPhase::None;
@@ -83,14 +84,17 @@ void VoiceController::cancel() {
   enterIdle();
 }
 
+//  返回当前语音交互状态 / Return the current voice interaction state
 VoiceState VoiceController::state() const {
   return state_;
 }
 
+//  查询是否正在等待用户命令 / Check whether a user command is expected
 bool VoiceController::listeningForCommand() const {
   return state_ == VoiceState::ListeningForCommand;
 }
 
+//  查询确认音期间是否暂时屏蔽语音判定 / Check whether speech decisions are temporarily suppressed
 bool VoiceController::speechInputSuppressed() const {
   if (acknowledgementPhase_ != AcknowledgementPhase::None) {
     return true;
@@ -99,6 +103,7 @@ bool VoiceController::speechInputSuppressed() const {
   return static_cast<int32_t>(speechSuppressedUntilMs_ - millis()) > 0;
 }
 
+//  按时间推进低音、静音和高音三个确认阶段 / Advance the low, silence, and high acknowledgement phases
 void VoiceController::updateAcknowledgement(uint32_t nowMs) {
   if (acknowledgementPhase_ == AcknowledgementPhase::None) {
     return;
@@ -139,6 +144,7 @@ void VoiceController::updateAcknowledgement(uint32_t nowMs) {
   }
 }
 
+//  停止提示音并清理所有等待状态 / Stop acknowledgement audio and clear waiting state
 void VoiceController::enterIdle() {
   OmiPetBuzzer::buzzer.stop();
   state_ = VoiceState::Idle;

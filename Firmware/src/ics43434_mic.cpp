@@ -5,6 +5,7 @@
 
 namespace OmiPetAudio {
 
+//  初始化 ICS-43434 的 I2S 接收配置 / Initialize the ICS-43434 I2S receive configuration
 bool Ics43434Mic::begin(uint32_t sampleRateHz, MicChannel channel) {
   if (sampleRateHz == 0U) {
     return false;
@@ -57,6 +58,7 @@ bool Ics43434Mic::begin(uint32_t sampleRateHz, MicChannel channel) {
   return true;
 }
 
+//  卸载 I2S 驱动并释放麦克风接收资源 / Uninstall the I2S driver and release microphone resources
 void Ics43434Mic::end() {
   if (!initialized_) {
     return;
@@ -66,10 +68,12 @@ void Ics43434Mic::end() {
   initialized_ = false;
 }
 
+//  查询 I2S 麦克风是否已经初始化 / Check whether the I2S microphone is initialized
 bool Ics43434Mic::initialized() const {
   return initialized_;
 }
 
+//  读取原始 I2S 采样槽，并返回实际读取的字数 / Read raw I2S sample slots and return the number of words read
 size_t Ics43434Mic::readRawWords(int32_t* buffer, size_t wordCount) {
   if (!initialized_ || buffer == nullptr || wordCount == 0U) {
     return 0;
@@ -86,10 +90,12 @@ size_t Ics43434Mic::readRawWords(int32_t* buffer, size_t wordCount) {
   return std::min(bytesRead / sizeof(int32_t), wordCount);
 }
 
+//  返回当前使用的麦克风左右声道槽 / Return the selected microphone channel slot
 MicChannel Ics43434Mic::channel() const {
   return channel_;
 }
 
+//  返回当前 I2S 采样率 / Return the active I2S sample rate
 uint32_t Ics43434Mic::sampleRateHz() const {
   return sampleRateHz_;
 }

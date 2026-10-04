@@ -6,6 +6,7 @@
 
 namespace OmiPetAudio {
 
+//  清空待组帧数据、已排队帧和丢帧计数 / Clear pending samples, queued frames, and drop counters
 void PcmAudioFrameBuffer::reset() {
   pendingSampleCount_ = 0;
   queueReadIndex_ = 0;
@@ -14,6 +15,7 @@ void PcmAudioFrameBuffer::reset() {
   droppedFrameCount_ = 0;
 }
 
+//  把交错 I2S 双声道数据转换为单声道 PCM，并组成完整音频帧 / Convert interleaved I2S stereo data to mono PCM frames
 size_t PcmAudioFrameBuffer::pushInterleavedWords(const int32_t* words,
                                                  size_t wordCount,
                                                  MicChannel channel) {
@@ -42,10 +44,12 @@ bool PcmAudioFrameBuffer::popFrame(int16_t* frame, size_t sampleCount) {
   return true;
 }
 
+//  返回当前等待处理的 PCM 帧数量 / Return the number of queued PCM frames
 size_t PcmAudioFrameBuffer::queuedFrames() const {
   return queuedFrameCount_;
 }
 
+//  返回队列满时丢弃的帧总数 / Return frames dropped when the queue was full
 uint32_t PcmAudioFrameBuffer::droppedFrames() const {
   return droppedFrameCount_;
 }
@@ -69,6 +73,7 @@ void PcmAudioFrameBuffer::appendSample(int16_t sample) {
 }
 
 //  将 I2S 容器样本转换为 AFE PCM16 / Convert an I2S container sample to AFE PCM16
+//  把 I2S 原始样本缩放并限制到 PCM16 范围 / Scale and clamp a raw I2S sample into the PCM16 range
 int16_t convertI2sSampleToPcm16(int32_t rawSample) {
   const int32_t shiftedSample = rawSample >> 16;
   const int32_t minimumSample =

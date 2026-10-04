@@ -33,6 +33,7 @@ class PcmAudioFrameBuffer {
   uint32_t droppedFrames() const;
 
  private:
+  //  追加一个 PCM 样本，样本满一帧后入队 / Append one PCM sample and enqueue a complete frame
   void appendSample(int16_t sample);
 
   int16_t pendingSamples_[kPcmAudioFrameSamples] = {};  //  当前正在拼接的 PCM 样本 / PCM samples currently being assembled

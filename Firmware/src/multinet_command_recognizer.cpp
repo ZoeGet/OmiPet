@@ -207,6 +207,7 @@ int MultiNetCommandRecognizer::processFrame(const int16_t* samples,
   return commandId;
 }
 
+//  清空当前语音上下文，避免上一段语音影响下一次识别 / Clear speech context so the next segment starts cleanly
 void MultiNetCommandRecognizer::reset() {
   feedSamplesSinceFetch_ = 0;
   if (ready_) {
@@ -217,8 +218,10 @@ void MultiNetCommandRecognizer::reset() {
   }
 }
 
+//  返回识别器是否已经初始化完成 / Return whether the recognizer is initialized
 bool MultiNetCommandRecognizer::available() const { return ready_; }
 
+//  返回 AFE 要求的单帧 PCM 样本数 / Return the PCM sample count required by AFE
 size_t MultiNetCommandRecognizer::frameSamples() const {
   return feedFrameSamples_;
 }
