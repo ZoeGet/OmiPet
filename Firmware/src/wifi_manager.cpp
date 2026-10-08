@@ -48,15 +48,20 @@ void WifiManagerService::update() {
   if (portalStarted_) {
     //  配网门户运行期间只处理网页请求，不重复发起连接流程 / Process the portal without starting another connection flow
     manager_.process();
+    portalStarted_ = manager_.getConfigPortalActive();
+    provisioning_ = portalStarted_;
     return;
   }
 
   if (!everConnected_ &&
       millis() - connectStartedAtMs_ >= kInitialWifiConnectWindowMs) {
     //  超时后才启动门户，避免启动阶段被 Wi-Fi 连接阻塞 / Start the portal only after timeout so Wi-Fi cannot block startup
-    portalStarted_ = manager_.startConfigPortal(kProvisioningSsid,
-                                                kProvisioningPassword);
+    manager_.startConfigPortal(kProvisioningSsid, kProvisioningPassword);
+    portalStarted_ = manager_.getConfigPortalActive();
     provisioning_ = portalStarted_;
+    Serial.printf("[WIFI] config portal active=%s ap_ip=%s ssid=%s\n",
+                  portalStarted_ ? "yes" : "no", WiFi.softAPIP().toString().c_str(),
+                  kProvisioningSsid);
     return;
   }
 
@@ -69,9 +74,12 @@ void WifiManagerService::update() {
 
     if (nowMs - disconnectedAtMs_ >= kWifiReconnectGracePeriodMs) {
       //  重连超时后开启配网门户 / Start provisioning after the reconnect grace period expires
-      portalStarted_ = manager_.startConfigPortal(kProvisioningSsid,
-                                                  kProvisioningPassword);
+      manager_.startConfigPortal(kProvisioningSsid, kProvisioningPassword);
+      portalStarted_ = manager_.getConfigPortalActive();
       provisioning_ = portalStarted_;
+      Serial.printf("[WIFI] config portal active=%s ap_ip=%s ssid=%s\n",
+                    portalStarted_ ? "yes" : "no", WiFi.softAPIP().toString().c_str(),
+                    kProvisioningSsid);
       return;
     }
 
