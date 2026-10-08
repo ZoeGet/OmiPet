@@ -2,6 +2,7 @@
 set(OMIPET_SOURCES
     "main.cpp"
     "aht20_sensor.cpp"
+    "battery_monitor.cpp"
     "buzzer.cpp"
     "ics43434_mic.cpp"
     "led_controller.cpp"

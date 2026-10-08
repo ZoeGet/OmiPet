@@ -3,6 +3,7 @@
 #include <cmath>
 #include <cstdint>
 #include "aht20_sensor.h"
+#include "battery_monitor.h"
 #include "buzzer.h"
 #include "NV3007_Display.h"
 #include "led_controller.h"
@@ -459,6 +460,13 @@ void setup() {
   //  初始化无源蜂鸣器，但不自动播放声音 / Initialize the passive buzzer without playing sound automatically
   OmiPetBuzzer::buzzer.begin();
   OmiPetVoice::voice.begin();
+  //  在启动 Wi-Fi 前先采集一次电池电压 / Take an initial battery reading before starting Wi-Fi
+  OmiPetBattery::battery.begin();
+  const OmiPetBattery::BatteryMeasurement& initialBatteryReading =
+      OmiPetBattery::battery.measurement();
+  OmiPetUi::setBatteryStatus(initialBatteryReading.voltageV,
+                             initialBatteryReading.percent,
+                             initialBatteryReading.valid);
 
   //  初始化 LCD 并打开背光 / Initialize the LCD and enable the backlight
   OmiPetDisplay::lcd.begin(8000000UL);
@@ -539,6 +547,23 @@ void loop() {
         OmiPetSensor::aht20.measurement();
     OmiPetUi::setEnvironment(reading.temperatureC, reading.humidityPercent,
                              reading.valid && !reading.stale);
+  }
+  if (OmiPetBattery::battery.update()) {
+    const OmiPetBattery::BatteryMeasurement& batteryReading =
+        OmiPetBattery::battery.measurement();
+    OmiPetUi::setBatteryStatus(batteryReading.voltageV,
+                               batteryReading.percent,
+                               batteryReading.valid);
+    if (batteryReading.lastReadSucceeded) {
+      Serial.printf("[BAT] voltage=%.3fV percent=%u adc_gpio=%u sample=ok\n",
+                    batteryReading.voltageV,
+                    static_cast<unsigned>(batteryReading.percent),
+                    static_cast<unsigned>(OmiPetBattery::kBatteryAdcPin));
+    } else {
+      Serial.printf("[BAT] sample=failed adc_gpio=%u valid=%s\n",
+                    static_cast<unsigned>(OmiPetBattery::kBatteryAdcPin),
+                    batteryReading.valid ? "stale" : "no");
+    }
   }
   //  维护蜂鸣器非阻塞播放状态 / Maintain the buzzer's non-blocking playback state
   OmiPetBuzzer::buzzer.update();

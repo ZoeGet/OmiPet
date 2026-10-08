@@ -15,6 +15,7 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 - 无源蜂鸣器驱动。
 - Wi-Fi 异步连接和手机网页配网门户。
 - Wi-Fi 连接后通过 NTP 获取本地时间和日期；断网时显示占位符，不使用编译时间或假时间。
+- BAT_ADC 电池电压采样和单节锂电估算电量显示；百分比仍需结合实测电池曲线校准。
 - ICS-43434 原始 I²S 采集、RMS 音量分析、自适应语音活动检测和 16-bit PCM 音频帧适配。
 - ESP-SR v1.2.0 中文 MultiNet `mn6_cn` 命令识别、独立模型分区和自定义短语“老鼠狒狒”实验链路。
 
@@ -34,6 +35,7 @@ OmiPet 是一个面向桌面陪伴场景的开源软硬件项目：它以 ESP32-
 | 麦克风 / Microphone | ICS-43434，I²S，GPIO5/6/7 |
 | 配网 / Provisioning | WiFiManager 手机网页配网 / WiFiManager captive portal |
 | 时间 / Time | NTP 联网校时，默认 UTC+8；离线显示 `--:--` 和 `----/--/--` / NTP time sync, UTC+8 default; placeholders offline |
+| 电池 / Battery | GPIO13 分压采样，显示电压和基于单节锂电静置电压的估算百分比 / GPIO13 divider sampling with voltage and estimated single-cell Li-ion percentage |
 
 ## 麦克风与 I²S / Microphone and I²S
 
